@@ -23,6 +23,25 @@ class AppTheme {
   static const Color completedBg = Color(0xFFC8E6C9);
   static const Color cancelledBg = Color(0xFFFFCDD2);
 
+  // Chart Colors
+  static const List<Color> chartColors = [
+    primaryBlue,      // Chart 1 - Primary Blue
+    successGreen,     // Chart 2 - Success Green
+    warningOrange,    // Chart 3 - Warning Orange
+    errorRed,         // Chart 4 - Error Red
+    Color(0xFF9C27B0), // Chart 5 - Purple
+  ];
+
+  // Chart Grid & Axis Colors
+  static const Color chartGridColor = Color(0xFFE0E0E0);
+  static const Color chartAxisColor = Color(0xFF757575);
+  static const Color chartBackgroundColor = Color(0xFFF5F5F5);
+
+  // Trend Indicator Colors
+  static const Color trendUpColor = successGreen;
+  static const Color trendDownColor = errorRed;
+  static const Color trendNeutralColor = darkGray;
+
   // Gradient
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.topLeft,
