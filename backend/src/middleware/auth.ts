@@ -17,6 +17,17 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
 
+    // Development mode - bypass database for demo
+    if (process.env.NODE_ENV === 'development' && decoded.email === 'admin@cancan.com') {
+      req.user = {
+        id: 'dev-admin-1',
+        email: 'admin@cancan.com',
+        role: 'super_admin',
+        last_login: new Date().toISOString()
+      };
+      return next();
+    }
+
     // Fetch admin user from database
     const { data: admin, error } = await supabase
       .from('admin_users')

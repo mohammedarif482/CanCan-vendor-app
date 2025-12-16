@@ -15,6 +15,26 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password required' });
     }
 
+    // Development mode - bypass database for demo
+    if (process.env.NODE_ENV === 'development' && email === 'admin@cancan.com' && password === 'admin123') {
+      // Generate JWT token
+      const token = jwt.sign(
+        { email: 'admin@cancan.com', role: 'super_admin' },
+        process.env.JWT_SECRET as string,
+        { expiresIn: process.env.JWT_EXPIRE || '7d' }
+      );
+
+      return res.json({
+        token,
+        user: {
+          id: 'dev-admin-1',
+          email: 'admin@cancan.com',
+          role: 'super_admin',
+          last_login: new Date().toISOString()
+        }
+      });
+    }
+
     // Fetch admin user
     const { data: admin, error } = await supabase
       .from('admin_users')
@@ -41,7 +61,7 @@ router.post('/login', async (req, res) => {
     // Generate JWT token
     const token = jwt.sign(
       { email: admin.email, role: admin.role },
-      process.env.JWT_SECRET!,
+      process.env.JWT_SECRET as string,
       { expiresIn: process.env.JWT_EXPIRE || '7d' }
     );
 
