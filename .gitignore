@@ -72,24 +72,24 @@ coverage/
 .pnp.*
 
 # ------------------------------
-# Backend (Node.js/Express)
+# Server (Node.js/Express)
 # ------------------------------
-backend/node_modules/
-backend/dist/
-backend/.env
-backend/.env.*
-backend/logs/
-backend/*.log
+server/node_modules/
+server/dist/
+server/.env
+server/.env.*
+server/logs/
+server/*.log
 
 # ------------------------------
-# Frontend (React)
+# Dashboard (React)
 # ------------------------------
-frontend/node_modules/
-frontend/build/
-frontend/.env
-frontend/.env.*
-frontend/.cache/
-frontend/eslint-cache
+dashboard/node_modules/
+dashboard/build/
+dashboard/.env
+dashboard/.env.*
+dashboard/.cache/
+dashboard/eslint-cache
 
 # ------------------------------
 # Android
