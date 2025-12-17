@@ -44,6 +44,18 @@ export const fetchCommissions = createAsyncThunk(
   }
 );
 
+export const fetchCommissionStats = createAsyncThunk(
+  'commissions/fetchStats',
+  async (period: number = 30, { rejectWithValue }) => {
+    try {
+      const response = await apiService.getCommissionStats(period);
+      return response;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.error || 'Failed to fetch commission stats');
+    }
+  }
+);
+
 const commissionSlice = createSlice({
   name: 'commissions',
   initialState,
@@ -66,6 +78,9 @@ const commissionSlice = createSlice({
       .addCase(fetchCommissions.rejected, (state, action: PayloadAction<any>) => {
         state.isLoading = false;
         state.error = action.payload;
+      })
+      .addCase(fetchCommissionStats.fulfilled, (state, action: PayloadAction<any>) => {
+        state.stats = action.payload;
       });
   },
 });

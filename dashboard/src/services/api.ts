@@ -45,7 +45,7 @@ class ApiService {
 
   // Authentication
   async login(email: string, password: string) {
-    const response = await this.api.post('/auth/login', { email, password });
+    const response = await this.api.post('/auth/admin/login', { email, password });
     return response.data;
   }
 

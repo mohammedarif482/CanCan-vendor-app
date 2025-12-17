@@ -73,32 +73,23 @@ export interface OrderItem {
 
 export interface WhatsAppMessage {
   id: string;
-  message_id: string;
-  customer_phone: string;
-  message_type: string;
-  message_content: string;
+  phone: string;
+  message: string;
   direction: 'inbound' | 'outbound';
-  status: string;
+  status: 'sent' | 'pending' | 'failed' | 'delivered';
   created_at: string;
+  whatsapp_message_id?: string;
 }
 
 export interface WhatsAppOrder {
   id: string;
-  message_id: string;
-  customer_id: string;
-  parsed_quantity?: number;
-  parsed_product?: string;
+  order_number: string;
+  customer_name: string;
+  phone: string;
+  items?: any[];
+  total_amount?: number;
   status: string;
-  assigned_vendor_id?: string;
   created_at: string;
-  customer?: {
-    name: string;
-    phone: string;
-  };
-  assigned_vendor?: {
-    name: string;
-    business_name?: string;
-  };
 }
 
 export interface CommissionRecord {
@@ -106,19 +97,16 @@ export interface CommissionRecord {
   order_id: string;
   vendor_id: string;
   commission_amount: number;
-  order_amount: number;
+  order_total: number;
   commission_rate: number;
-  status: 'pending' | 'paid';
+  status: 'pending' | 'processing' | 'paid' | 'cancelled';
   created_at: string;
   paid_at?: string;
+  order_date?: string;
   vendor?: {
+    id: string;
     name: string;
-    business_name?: string;
-  };
-  order?: {
-    order_number: string;
-    total_amount: number;
-    created_at: string;
+    phone: string;
   };
 }
 

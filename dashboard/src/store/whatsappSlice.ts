@@ -5,7 +5,7 @@ import apiService from '../services/api';
 interface WhatsAppState {
   config: any;
   messages: WhatsAppMessage[];
-  whatsappOrders: WhatsAppOrder[];
+  orders: WhatsAppOrder[];
   pagination: {
     page: number;
     limit: number;
@@ -19,7 +19,7 @@ interface WhatsAppState {
 const initialState: WhatsAppState = {
   config: null,
   messages: [],
-  whatsappOrders: [],
+  orders: [],
   pagination: {
     page: 1,
     limit: 10,
@@ -54,6 +54,18 @@ export const fetchWhatsAppMessages = createAsyncThunk(
   }
 );
 
+export const fetchWhatsAppOrders = createAsyncThunk(
+  'whatsapp/fetchOrders',
+  async (params: any, { rejectWithValue }) => {
+    try {
+      const response = await apiService.getWhatsAppOrders(params);
+      return response;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.error || 'Failed to fetch WhatsApp orders');
+    }
+  }
+);
+
 const whatsappSlice = createSlice({
   name: 'whatsapp',
   initialState,
@@ -69,6 +81,10 @@ const whatsappSlice = createSlice({
       })
       .addCase(fetchWhatsAppMessages.fulfilled, (state, action: PayloadAction<any>) => {
         state.messages = action.payload.messages;
+        state.pagination = action.payload.pagination;
+      })
+      .addCase(fetchWhatsAppOrders.fulfilled, (state, action: PayloadAction<any>) => {
+        state.orders = action.payload.orders;
         state.pagination = action.payload.pagination;
       });
   },
