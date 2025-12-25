@@ -126,7 +126,7 @@ class RevenueMetrics {
       pendingOrders: json['pending_orders'] as int? ?? 0,
       completedOrders: json['completed_orders'] as int? ?? 0,
       dateRange: json['date_range'] != null
-          ? DateRange.fromJson(json['date_range'] as Map<String, dynamic>)
+          ? dateRangeFromJson(json['date_range'] as Map<String, dynamic>)
           : DateRange.today(),
     );
   }
@@ -216,7 +216,7 @@ class SalesData {
       totalOrders: json['total_orders'] as int? ?? 0,
       totalCans: json['total_cans'] as int? ?? 0,
       dateRange: json['date_range'] != null
-          ? DateRange.fromJson(json['date_range'] as Map<String, dynamic>)
+          ? dateRangeFromJson(json['date_range'] as Map<String, dynamic>)
           : DateRange.today(),
     );
   }
@@ -307,7 +307,7 @@ class CustomerInsights {
           ?.map((item) => CustomerSegment.fromJson(item as Map<String, dynamic>))
           .toList() ?? [],
       dateRange: json['date_range'] != null
-          ? DateRange.fromJson(json['date_range'] as Map<String, dynamic>)
+          ? dateRangeFromJson(json['date_range'] as Map<String, dynamic>)
           : DateRange.today(),
     );
   }
@@ -398,7 +398,7 @@ class PerformanceTrend {
           ?.map((item) => TrendDataPoint.fromJson(item as Map<String, dynamic>))
           .toList() ?? [],
       dateRange: json['date_range'] != null
-          ? DateRange.fromJson(json['date_range'] as Map<String, dynamic>)
+          ? dateRangeFromJson(json['date_range'] as Map<String, dynamic>)
           : DateRange.today(),
     );
   }
@@ -423,14 +423,6 @@ class PerformanceTrend {
 
 /// Extended DateRange JSON support
 extension DateRangeExtension on DateRange {
-  factory DateRange.fromJson(Map<String, dynamic> json) {
-    return DateRange(
-      start: DateTime.parse(json['start'] as String),
-      end: DateTime.parse(json['end'] as String),
-      label: json['label'] as String,
-    );
-  }
-
   Map<String, dynamic> toJson() {
     return {
       'start': start.toIso8601String(),
@@ -438,4 +430,13 @@ extension DateRangeExtension on DateRange {
       'label': label,
     };
   }
+}
+
+/// Parse DateRange from JSON
+DateRange dateRangeFromJson(Map<String, dynamic> json) {
+  return DateRange(
+    start: DateTime.parse(json['start'] as String),
+    end: DateTime.parse(json['end'] as String),
+    label: json['label'] as String,
+  );
 }

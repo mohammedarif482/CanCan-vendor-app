@@ -35,6 +35,8 @@ import {
   Delete as DeleteIcon,
   Visibility as ViewIcon,
   Store as StoreIcon,
+  Person as PersonIcon,
+  TrendingUp as TrendingUp,
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
@@ -116,10 +118,10 @@ const Vendors: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'success';
-      case 'inactive': return 'warning';
-      case 'suspended': return 'error';
-      default: return 'default';
+      case 'active': return { bg: '#E8F5E9', text: '#2E7D32' };
+      case 'inactive': return { bg: '#FEF7E0', text: '#B45309' };
+      case 'suspended': return { bg: '#FFEBEE', text: '#C62828' };
+      default: return { bg: '#F5F5F5', text: '#616161' };
     }
   };
 
@@ -142,49 +144,167 @@ const Vendors: React.FC = () => {
   if (error) {
     return (
       <Box>
-        <Typography variant="h4" gutterBottom>
+        <Typography variant="h4" sx={{ fontWeight: 600, mb: 2 }}>
           Vendors Management
         </Typography>
-        <Alert severity="error">{error}</Alert>
+        <Alert severity="error" sx={{ borderRadius: 2 }}>{error}</Alert>
       </Box>
     );
   }
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Vendors Management
-      </Typography>
+      {/* Header */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 600, color: '#202124', mb: 0.5 }}>
+          Vendors Management
+        </Typography>
+        <Typography variant="body1" sx={{ color: 'text.secondary' }}>
+          Manage your water can delivery vendors
+        </Typography>
+      </Box>
 
       {/* Stats Cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
+          <Card
+            sx={{
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.12)' },
+              transition: 'box-shadow 0.2s',
+            }}
+          >
             <CardContent>
-              <Box display="flex" alignItems="center">
-                <StoreIcon sx={{ mr: 2, color: 'primary.main' }} />
+              <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
-                  <Typography color="textSecondary" gutterBottom variant="h6">
+                  <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1, fontWeight: 500 }}>
                     Total Vendors
                   </Typography>
-                  <Typography variant="h4">{pagination.total}</Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#202124' }}>
+                    {pagination.total}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    bgcolor: 'rgba(26, 115, 232, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <StoreIcon sx={{ color: '#1A73E8', fontSize: 24 }} />
                 </Box>
               </Box>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
+          <Card
+            sx={{
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.12)' },
+              transition: 'box-shadow 0.2s',
+            }}
+          >
             <CardContent>
-              <Box display="flex" alignItems="center">
-                <StoreIcon sx={{ mr: 2, color: 'success.main' }} />
+              <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
-                  <Typography color="textSecondary" gutterBottom variant="h6">
+                  <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1, fontWeight: 500 }}>
                     Active Vendors
                   </Typography>
-                  <Typography variant="h4">
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#202124' }}>
                     {vendors.filter(v => v.status === 'active').length}
                   </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    bgcolor: 'rgba(52, 168, 83, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <PersonIcon sx={{ color: '#34A853', fontSize: 24 }} />
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card
+            sx={{
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.12)' },
+              transition: 'box-shadow 0.2s',
+            }}
+          >
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1, fontWeight: 500 }}>
+                    Total Revenue
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#202124' }}>
+                    {formatCurrency(vendors.reduce((sum, v) => sum + (v.stats?.totalRevenue || 0), 0))}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    bgcolor: 'rgba(251, 188, 5, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <TrendingUp sx={{ color: '#FBBC05', fontSize: 24 }} />
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card
+            sx={{
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.12)' },
+              transition: 'box-shadow 0.2s',
+            }}
+          >
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1, fontWeight: 500 }}>
+                    Total Orders
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#202124' }}>
+                    {vendors.reduce((sum, v) => sum + (v.stats?.totalOrders || 0), 0)}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    bgcolor: 'rgba(147, 52, 234, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <StoreIcon sx={{ color: '#9334EA', fontSize: 24 }} />
                 </Box>
               </Box>
             </CardContent>
@@ -192,7 +312,15 @@ const Vendors: React.FC = () => {
         </Grid>
       </Grid>
 
-      <Paper sx={{ p: 2, mb: 2 }}>
+      {/* Filters */}
+      <Paper
+        sx={{
+          p: 2.5,
+          mb: 2,
+          borderRadius: 3,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+        }}
+      >
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} md={4}>
             <TextField
@@ -201,6 +329,8 @@ const Vendors: React.FC = () => {
               value={searchTerm}
               onChange={handleSearch}
               size="small"
+              placeholder="Name, phone, business..."
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
             />
           </Grid>
           <Grid item xs={12} md={3}>
@@ -210,6 +340,7 @@ const Vendors: React.FC = () => {
                 value={statusFilter}
                 onChange={handleStatusFilter}
                 label="Status"
+                sx={{ borderRadius: 2 }}
               >
                 <MenuItem value="all">All Status</MenuItem>
                 <MenuItem value="active">Active</MenuItem>
@@ -224,6 +355,7 @@ const Vendors: React.FC = () => {
                 variant="contained"
                 startIcon={<AddIcon />}
                 onClick={handleAddVendor}
+                sx={{ borderRadius: 2, fontWeight: 600 }}
               >
                 Add Vendor
               </Button>
@@ -232,7 +364,14 @@ const Vendors: React.FC = () => {
         </Grid>
       </Paper>
 
-      <Paper>
+      {/* Table */}
+      <Paper
+        sx={{
+          borderRadius: 3,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+          overflow: 'hidden',
+        }}
+      >
         <TableContainer>
           <Table>
             <TableHead>
@@ -250,49 +389,62 @@ const Vendors: React.FC = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
+                  <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                     <CircularProgress />
                   </TableCell>
                 </TableRow>
               ) : vendors.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
-                    <Typography variant="body2" color="textSecondary">
+                  <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                       No vendors found
                     </Typography>
                   </TableCell>
                 </TableRow>
               ) : (
-                vendors.map((vendor) => (
-                  <TableRow key={vendor.id} hover>
-                    <TableCell>
+                vendors.map((vendor) => {
+                  const statusColors = getStatusColor(vendor.status);
+                  return (
+                    <TableRow key={vendor.id} hover>
+                      <TableCell>
                       <Box>
-                        <Typography variant="subtitle2">{vendor.name}</Typography>
-                        <Typography variant="body2" color="textSecondary">
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                          {vendor.name}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                           {vendor.phone}
                         </Typography>
                       </Box>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
                         {vendor.business_name || '-'}
                       </Typography>
                     </TableCell>
                     <TableCell>
                       <Chip
-                        label={vendor.status}
-                        color={getStatusColor(vendor.status) as any}
+                        label={vendor.status.replace(/\b\w/g, l => l.toUpperCase())}
+                        sx={{
+                          bgcolor: statusColors.bg,
+                          color: statusColors.text,
+                          fontWeight: 600,
+                          fontSize: '0.75rem',
+                        }}
                         size="small"
                       />
                     </TableCell>
-                    <TableCell>{vendor.commission_rate}%</TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {vendor.commission_rate}%
+                      </Typography>
+                    </TableCell>
                     <TableCell>
                       <Typography variant="body2">
                         {vendor.stats?.totalOrders || 0}
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         {formatCurrency(vendor.stats?.totalRevenue || 0)}
                       </Typography>
                     </TableCell>
@@ -305,26 +457,30 @@ const Vendors: React.FC = () => {
                       <IconButton
                         size="small"
                         onClick={() => handleEditVendor(vendor)}
+                        sx={{ borderRadius: 2 }}
                         title="Edit"
                       >
-                        <EditIcon />
+                        <EditIcon fontSize="small" />
                       </IconButton>
                       <IconButton
                         size="small"
                         title="View Details"
+                        sx={{ borderRadius: 2 }}
                       >
-                        <ViewIcon />
+                        <ViewIcon fontSize="small" />
                       </IconButton>
                       <IconButton
                         size="small"
                         color="error"
                         title="Delete"
+                        sx={{ borderRadius: 2 }}
                       >
-                        <DeleteIcon />
+                        <DeleteIcon fontSize="small" />
                       </IconButton>
                     </TableCell>
                   </TableRow>
-                ))
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -337,14 +493,21 @@ const Vendors: React.FC = () => {
           page={page}
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
+          sx={{ borderTop: '1px solid #E8EAED' }}
         />
       </Paper>
 
       {/* Add Vendor Dialog */}
-      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add New Vendor</DialogTitle>
+      <Dialog
+        open={addDialogOpen}
+        onClose={() => setAddDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600 }}>Add New Vendor</DialogTitle>
         <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -352,6 +515,8 @@ const Vendors: React.FC = () => {
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 required
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -361,6 +526,8 @@ const Vendors: React.FC = () => {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Grid>
             <Grid item xs={12}>
@@ -369,6 +536,8 @@ const Vendors: React.FC = () => {
                 label="Business Name"
                 value={formData.business_name}
                 onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Grid>
             <Grid item xs={12}>
@@ -379,6 +548,8 @@ const Vendors: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 multiline
                 rows={2}
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -389,10 +560,12 @@ const Vendors: React.FC = () => {
                 value={formData.commission_rate}
                 onChange={(e) => setFormData({ ...formData, commission_rate: parseFloat(e.target.value) })}
                 inputProps={{ min: 0, max: 100 }}
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <FormControl fullWidth>
+              <FormControl fullWidth size="small">
                 <InputLabel>Status</InputLabel>
                 <Select
                   value={formData.status}
@@ -407,17 +580,23 @@ const Vendors: React.FC = () => {
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAddDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained">Add Vendor</Button>
+        <DialogActions sx={{ p: 2.5, pt: 0 }}>
+          <Button onClick={() => setAddDialogOpen(false)} sx={{ borderRadius: 2 }}>Cancel</Button>
+          <Button variant="contained" sx={{ borderRadius: 2, fontWeight: 600 }}>Add Vendor</Button>
         </DialogActions>
       </Dialog>
 
       {/* Edit Vendor Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit Vendor</DialogTitle>
+      <Dialog
+        open={editDialogOpen}
+        onClose={() => setEditDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600 }}>Edit Vendor</DialogTitle>
         <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -425,6 +604,8 @@ const Vendors: React.FC = () => {
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 disabled
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -433,6 +614,8 @@ const Vendors: React.FC = () => {
                 label="Name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Grid>
             <Grid item xs={12}>
@@ -441,6 +624,8 @@ const Vendors: React.FC = () => {
                 label="Business Name"
                 value={formData.business_name}
                 onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Grid>
             <Grid item xs={12}>
@@ -451,6 +636,8 @@ const Vendors: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 multiline
                 rows={2}
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -461,10 +648,12 @@ const Vendors: React.FC = () => {
                 value={formData.commission_rate}
                 onChange={(e) => setFormData({ ...formData, commission_rate: parseFloat(e.target.value) })}
                 inputProps={{ min: 0, max: 100 }}
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <FormControl fullWidth>
+              <FormControl fullWidth size="small">
                 <InputLabel>Status</InputLabel>
                 <Select
                   value={formData.status}
@@ -479,9 +668,9 @@ const Vendors: React.FC = () => {
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained">Update Vendor</Button>
+        <DialogActions sx={{ p: 2.5, pt: 0 }}>
+          <Button onClick={() => setEditDialogOpen(false)} sx={{ borderRadius: 2 }}>Cancel</Button>
+          <Button variant="contained" sx={{ borderRadius: 2, fontWeight: 600 }}>Update Vendor</Button>
         </DialogActions>
       </Dialog>
     </Box>

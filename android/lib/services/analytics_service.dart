@@ -231,7 +231,7 @@ class AnalyticsService {
         final customerCreatedAt = DateTime.parse(customerData['created_at'] as String);
 
         uniqueCustomers.add(customerId);
-        customerRevenue[customerId] = (customerRevenue[customerId] ?? 0)) + amount;
+        customerRevenue[customerId] = (customerRevenue[customerId] ?? 0) + amount;
 
         // Check if customer is new in this period
         if (customerCreatedAt.isAfter(range.start.subtract(const Duration(days: 1)))) {
@@ -601,7 +601,7 @@ class AnalyticsService {
   }
 
   /// Get customer insights for dashboard
-  Future<List<Map<String, dynamic>>> getCustomerInsights({
+  Future<List<Map<String, dynamic>>> getTopCustomers({
     required int limit,
   }) async {
     try {
@@ -630,7 +630,8 @@ class AnalyticsService {
             'orderCount': 0,
           };
         }
-        customerData[customerId]['orderCount']++;
+        final data = customerData[customerId]!;
+        data['orderCount'] = (data['orderCount'] as int) + 1;
       }
 
       final sortedCustomers = customerData.values.toList()
@@ -661,7 +662,7 @@ class AnalyticsService {
           .from('orders')
           .select('customer_id')
           .eq('vendor_id', vendorId)
-          .neq('customer_id', null);
+          .not('customer_id', 'is', null);
 
       final uniqueCustomers = customersCount.map((order) => order['customer_id'] as String).toSet().length;
 

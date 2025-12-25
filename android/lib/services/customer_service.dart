@@ -46,18 +46,14 @@ class CustomerService {
         query = query.or('name.ilike.%$searchQuery%,phone.ilike.%$searchQuery%');
       }
 
-      // Apply sorting
-      query = query.order(sortBy ?? 'name', ascending: ascending);
+      // Build the final query with sorting and pagination - don't reassign
+      final finalQuery = query.order(sortBy ?? 'name', ascending: ascending);
+      final withLimit = limit != null ? finalQuery.limit(limit) : finalQuery;
+      final withOffset = offset != null
+          ? withLimit.range(offset, offset + (limit ?? 50) - 1)
+          : withLimit;
 
-      // Apply pagination
-      if (limit != null) {
-        query = query.limit(limit);
-      }
-      if (offset != null) {
-        query = query.range(offset, offset + (limit ?? 50) - 1);
-      }
-
-      final response = await query;
+      final response = await withOffset;
 
       final customers = response.map((json) {
         final customerJson = Map<String, dynamic>.from(json);
@@ -183,13 +179,11 @@ class CustomerService {
         query = query.eq('status', status);
       }
 
-      query = query.order('created_at', ascending: false);
+      // Build the final query - don't reassign after order/limit
+      final orderedQuery = query.order('created_at', ascending: false);
+      final withLimit = limit != null ? orderedQuery.limit(limit) : orderedQuery;
 
-      if (limit != null) {
-        query = query.limit(limit);
-      }
-
-      final response = await query;
+      final response = await withLimit;
 
       final orders = response.map((json) {
         return Order.fromJson(json);

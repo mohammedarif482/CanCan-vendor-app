@@ -232,14 +232,13 @@ class OrderService {
           ''')
           .eq('vendor_id', vendorId)
           .gte('delivery_date', startDate.toIso8601String())
-          .lte('delivery_date', endDate.toIso8601String())
-          .order('delivery_date', ascending: false);
+          .lte('delivery_date', endDate.toIso8601String());
 
       if (status != null) {
         query = query.eq('status', status);
       }
 
-      final response = await query;
+      final response = await query.order('delivery_date', ascending: false);
       AppLogger.i('Found ${response.length} orders for date range');
 
       return (response as List).map((json) => Order.fromJson(json)).toList();

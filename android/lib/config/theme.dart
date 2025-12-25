@@ -12,6 +12,11 @@ class AppTheme {
   static const Color stopColor = Color(0xFFff073a); // Stop/Error
   static const Color infoColor = Color(0xFF2196F3); // Info (assumed blue)
 
+  // Legacy color aliases for compatibility
+  static const Color primaryBlue = infoColor; // #2196F3
+  static const Color primaryBlueDark = Color(0xFF1976D2); // Darker blue
+  static const Color successGreen = primaryGreen; // #a3cf00
+
   // Extended Color Palette
   static const Color primaryGreen = Color(0xFFa3cf00); // Primary brand green
   static const Color primaryGreenDark = Color(0xFF8bb800); // Darker variant

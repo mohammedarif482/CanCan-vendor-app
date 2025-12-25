@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../config/theme.dart';
 import '../../services/order_service.dart';
 import '../../services/analytics_service.dart';
@@ -11,9 +12,9 @@ import 'widgets/revenue_trend_chart.dart';
 import 'widgets/top_products_chart.dart';
 import 'widgets/customer_insights_card.dart';
 import 'widgets/date_range_selector.dart';
-import 'history/history_screen.dart';
-import 'payments/payments_screen.dart';
-import 'inventory/inventory_screen.dart';
+import '../history/history_screen.dart';
+import '../payments/payments_screen.dart';
+import '../inventory/inventory_screen.dart';
 
 /// Enhanced Home Screen - Main Dashboard with Analytics
 class HomeScreenEnhanced extends StatefulWidget {
@@ -172,7 +173,7 @@ class _HomeTabScreenEnhancedState extends State<HomeTabScreenEnhanced>
       final results = await Future.wait([
         _analyticsService.getRevenueData(startDate: startDate, endDate: now),
         _analyticsService.getTopProducts(limit: 5, startDate: startDate, endDate: now),
-        _analyticsService.getCustomerInsights(limit: 5),
+        _analyticsService.getTopCustomers(limit: 5),
         _analyticsService.getQuickStats(),
       ]);
 

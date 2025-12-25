@@ -20,9 +20,6 @@ class SupabaseConfig {
         authOptions: const FlutterAuthClientOptions(
           authFlowType: AuthFlowType.pkce, // More secure
         ),
-        debugOptions: SupabaseDebugOptions(
-          enabled: AppConfig.shouldEnableVerboseLogging,
-        ),
       );
 
       AppLogger.i('Supabase initialized successfully');

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../config/theme.dart';
 import '../../config/supabase_config.dart';
+import '../../utils/logger.dart';
 import '../home/widgets/app_drawer.dart';
 import '../../services/inventory_service.dart';
 
@@ -17,6 +19,7 @@ class InventoryScreen extends StatefulWidget {
 class _InventoryScreenState extends State<InventoryScreen>
     with SingleTickerProviderStateMixin {
   final _inventoryService = InventoryService();
+  final _supabase = Supabase.instance.client;
   bool _isLoading = true;
   List<Map<String, dynamic>> _products = [];
   List<Map<String, dynamic>> _lowStockProducts = [];
@@ -529,266 +532,6 @@ class _InventoryScreenState extends State<InventoryScreen>
   Widget _buildEmptyState() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.inventory_2_outlined,
-              size: 64,
-              color: AppTheme.mediumGray,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No products in inventory',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: AppTheme.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Add your first product to start tracking inventory',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _showAddProductDialog,
-              icon: const Icon(Icons.add),
-              label: const Text('Add Product'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryBlue,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showAddProductDialog() {
-    // Show product selection and pricing setup
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add New Product'),
-        content: const Text('Product catalog and pricing setup will be implemented in the next phase. This will allow you to:\n\n• Select from available water can brands\n• Set your selling prices\n• Configure deposit amounts\n• Set initial stock levels'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Got it'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showUpdateStockDialog(Map<String, dynamic> product) {
-    final currentStock = product['current_stock'] ?? 0;
-    final productName = product['products']?['name'] ?? 'Product';
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Update Stock - $productName'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Current stock: $currentStock',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'New Stock Level',
-                border: OutlineInputBorder(),
-              ),
-              onSubmitted: (value) {
-                final newStock = int.tryParse(value);
-                if (newStock != null && newStock >= 0) {
-                  _updateStock(product['id'], newStock);
-                  Navigator.pop(context);
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter a valid stock number')),
-                  );
-                }
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              // Handle update
-              Navigator.pop(context);
-            },
-            child: const Text('Update'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showProductOptions(Map<String, dynamic> product) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('Edit Product'),
-              onTap: () {
-                Navigator.pop(context);
-                _editProduct(product);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.history_outlined),
-              title: const Text('View History'),
-              onTap: () {
-                Navigator.pop(context);
-                _viewStockHistory(product);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline, color: AppTheme.errorRed),
-              title: const Text('Delete Product', style: TextStyle(color: AppTheme.errorRed)),
-              onTap: () {
-                Navigator.pop(context);
-                _deleteProduct(product);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _updateStock(String vendorProductId, int newStock) async {
-    try {
-      final result = await _inventoryService.updateStockLevel(
-        vendorProductId: vendorProductId,
-        newStockLevel: newStock,
-      );
-
-      if (result['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message']),
-            backgroundColor: AppTheme.successGreen,
-          ),
-        );
-        _loadInventory();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message']),
-            backgroundColor: AppTheme.errorRed,
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to update stock')),
-      );
-    }
-  }
-
-  void _editProduct(Map<String, dynamic> product) {
-    final productName = product['products']?['name'] ?? 'Product';
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Edit $productName'),
-        content: const Text('Product editing features including:\n\n• Price adjustments\n• Stock threshold changes\n• Deposit amount updates\n• Product information management\n\nWill be available in the next update.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Understood'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _viewStockHistory(Map<String, dynamic> product) {
-    final productName = product['products']?['name'] ?? 'Product';
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Stock History - $productName'),
-        content: const Text('Stock movement history will show:\n\n• Stock updates and changes\n• Delivery usage tracking\n• Low stock alerts timeline\n• Inventory adjustments\n\nComing in the next phase.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Got it'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _deleteProduct(Map<String, dynamic> product) {
-    final productName = product['products']?['name'] ?? 'Product';
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Product'),
-        content: Text('Are you sure you want to delete "$productName" from your inventory?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              try {
-                final result = await _inventoryService.deleteVendorProduct(product['id']);
-                if (result['success'] == true) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(result['message']),
-                      backgroundColor: AppTheme.successGreen,
-                    ),
-                  );
-                  _loadInventory();
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(result['message']),
-                      backgroundColor: AppTheme.errorRed,
-                    ),
-                  );
-                }
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Failed to delete product')),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
-}
         padding: const EdgeInsets.all(32.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -833,215 +576,6 @@ class _InventoryScreenState extends State<InventoryScreen>
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildInventoryList() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _products.length,
-      itemBuilder: (context, index) {
-        final product = _products[index];
-        final productInfo = product['products'] as Map<String, dynamic>;
-        final stock = product['current_stock'] as int? ?? 0;
-        final threshold = product['low_stock_threshold'] as int? ?? 10;
-        final isLowStock = stock <= threshold && stock > 0;
-        final isOutOfStock = stock == 0;
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppTheme.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isOutOfStock
-                    ? AppTheme.errorRed.withValues(alpha: 0.5)
-                    : isLowStock
-                        ? AppTheme.warningOrange.withValues(alpha: 0.5)
-                        : AppTheme.mediumGray,
-                width: isOutOfStock || isLowStock ? 2 : 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Product Header
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            productInfo['name'] ?? 'Product',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Rs.${product['selling_price']} per can',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(
-                                  color: AppTheme.textSecondary,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Status Badge
-                    if (isOutOfStock)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppTheme.errorRed,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.error, size: 16, color: AppTheme.white),
-                            SizedBox(width: 4),
-                            Text(
-                              'Out of Stock',
-                              style: TextStyle(
-                                color: AppTheme.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else if (isLowStock)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppTheme.warningOrange,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.warning,
-                                size: 16, color: AppTheme.white),
-                            SizedBox(width: 4),
-                            Text(
-                              'Low Stock',
-                              style: TextStyle(
-                                color: AppTheme.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Stock Information
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isOutOfStock
-                        ? AppTheme.errorRed.withValues(alpha: 0.1)
-                        : isLowStock
-                            ? AppTheme.warningOrange.withValues(alpha: 0.1)
-                            : AppTheme.lightGray,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Current Stock',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$stock cans',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineSmall
-                                ?.copyWith(
-                                  color: isOutOfStock
-                                      ? AppTheme.errorRed
-                                      : isLowStock
-                                          ? AppTheme.warningOrange
-                                          : AppTheme.textPrimary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            'Alert at',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$threshold cans',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Action Buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _showUpdateStockDialog(product),
-                        icon: const Icon(Icons.edit, size: 18),
-                        label: const Text('Update Stock'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      onPressed: () => _showEditProductDialog(product),
-                      icon: const Icon(Icons.settings,
-                          color: AppTheme.textSecondary),
-                      style: IconButton.styleFrom(
-                        backgroundColor: AppTheme.lightGray,
-                      ),
-                      tooltip: 'Product Settings',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 
@@ -1525,5 +1059,66 @@ class _InventoryScreenState extends State<InventoryScreen>
         );
       }
     }
+  }
+
+  void _showProductOptions(Map<String, dynamic> product) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Edit Product'),
+              onTap: () {
+                Navigator.pop(context);
+                _showEditProductDialog(product);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: AppTheme.errorRed),
+              title: const Text('Delete Product', style: TextStyle(color: AppTheme.errorRed)),
+              onTap: () {
+                Navigator.pop(context);
+                // Show delete confirmation
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Delete Product'),
+                    content: const Text('Are you sure you want to delete this product?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          try {
+                            await _supabase
+                                .from('vendor_products')
+                                .delete()
+                                .eq('id', product['id']);
+                            _loadInventory();
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Failed to delete product')),
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed),
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

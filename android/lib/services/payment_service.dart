@@ -23,8 +23,7 @@ class PaymentService {
             *,
             orders!inner(id, total_amount, created_at)
           ''')
-          .eq('vendor_id', vendorId)
-          .order('created_at', ascending: false);
+          .eq('vendor_id', vendorId);
 
       if (status != null) {
         query = query.eq('status', status);
@@ -36,7 +35,7 @@ class PaymentService {
         query = query.lte('created_at', endDate.toIso8601String());
       }
 
-      return List<Map<String, dynamic>>.from(await query);
+      return List<Map<String, dynamic>>.from(await query.order('created_at', ascending: false));
     } catch (e, stackTrace) {
       AppLogger.e('Error fetching payment history: $e', e, stackTrace);
       return [];

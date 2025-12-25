@@ -34,6 +34,8 @@ import {
   Phone as PhoneIcon,
   LocationOn as LocationIcon,
   ShoppingBasket as ShoppingBasketIcon,
+  AttachMoney as AttachMoneyIcon,
+  TrendingUp as TrendingUp,
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
@@ -126,88 +128,171 @@ const Customers: React.FC = () => {
   if (error) {
     return (
       <Box>
-        <Typography variant="h4" gutterBottom>
+        <Typography variant="h4" sx={{ fontWeight: 600, mb: 2 }}>
           Customers Management
         </Typography>
-        <Alert severity="error">{error}</Alert>
+        <Alert severity="error" sx={{ borderRadius: 2 }}>{error}</Alert>
       </Box>
     );
   }
 
+  const totalSpent = customers.reduce((sum, customer) => sum + (customer.stats?.totalSpent || 0), 0);
+  const totalOrders = customers.reduce((sum, customer) => sum + (customer.stats?.totalOrders || 0), 0);
+  const avgOrderValue = totalOrders > 0 ? totalSpent / customers.reduce((sum, customer) => sum + (customer.stats?.completedOrders || 0), 1) : 0;
+
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Customers Management
-      </Typography>
+      {/* Header */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 600, color: '#202124', mb: 0.5 }}>
+          Customers Management
+        </Typography>
+        <Typography variant="body1" sx={{ color: 'text.secondary' }}>
+          Manage your water can delivery customers
+        </Typography>
+      </Box>
 
       {/* Stats Cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
+          <Card
+            sx={{
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.12)' },
+              transition: 'box-shadow 0.2s',
+            }}
+          >
             <CardContent>
-              <Box display="flex" alignItems="center">
-                <PersonIcon sx={{ mr: 2, color: 'primary.main' }} />
+              <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
-                  <Typography color="textSecondary" gutterBottom variant="h6">
+                  <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1, fontWeight: 500 }}>
                     Total Customers
                   </Typography>
-                  <Typography variant="h4">{pagination.total}</Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#202124' }}>
+                    {pagination.total}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    bgcolor: 'rgba(26, 115, 232, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <PersonIcon sx={{ color: '#1A73E8', fontSize: 24 }} />
                 </Box>
               </Box>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
+          <Card
+            sx={{
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.12)' },
+              transition: 'box-shadow 0.2s',
+            }}
+          >
             <CardContent>
-              <Box display="flex" alignItems="center">
-                <ShoppingBasketIcon sx={{ mr: 2, color: 'success.main' }} />
+              <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
-                  <Typography color="textSecondary" gutterBottom variant="h6">
+                  <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1, fontWeight: 500 }}>
                     Active Orders
                   </Typography>
-                  <Typography variant="h4">
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#202124' }}>
                     {customers.reduce((sum, customer) => sum + (customer.stats?.totalOrders || 0), 0)}
                   </Typography>
                 </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center">
-                <PhoneIcon sx={{ mr: 2, color: 'info.main' }} />
-                <Box>
-                  <Typography color="textSecondary" gutterBottom variant="h6">
-                    Total Spent
-                  </Typography>
-                  <Typography variant="h4">
-                    {formatCurrency(
-                      customers.reduce((sum, customer) => sum + (customer.stats?.totalSpent || 0), 0)
-                    )}
-                  </Typography>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    bgcolor: 'rgba(52, 168, 83, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <ShoppingBasketIcon sx={{ color: '#34A853', fontSize: 24 }} />
                 </Box>
               </Box>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
+          <Card
+            sx={{
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.12)' },
+              transition: 'box-shadow 0.2s',
+            }}
+          >
             <CardContent>
-              <Box display="flex" alignItems="center">
-                <LocationIcon sx={{ mr: 2, color: 'warning.main' }} />
+              <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
-                  <Typography color="textSecondary" gutterBottom variant="h6">
+                  <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1, fontWeight: 500 }}>
+                    Total Spent
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#202124' }}>
+                    {formatCurrency(totalSpent)}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    bgcolor: 'rgba(251, 188, 5, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <AttachMoneyIcon sx={{ color: '#FBBC05', fontSize: 24 }} />
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card
+            sx={{
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.12)' },
+              transition: 'box-shadow 0.2s',
+            }}
+          >
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1, fontWeight: 500 }}>
                     Avg Order Value
                   </Typography>
-                  <Typography variant="h4">
-                    {formatCurrency(
-                      customers.reduce((sum, customer) => sum + (customer.stats?.totalSpent || 0), 0) /
-                      customers.reduce((sum, customer) => sum + (customer.stats?.completedOrders || 0), 1)
-                    )}
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#202124' }}>
+                    {formatCurrency(avgOrderValue)}
                   </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    bgcolor: 'rgba(2, 136, 209, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <TrendingUp sx={{ color: '#0288D1', fontSize: 24 }} />
                 </Box>
               </Box>
             </CardContent>
@@ -215,7 +300,15 @@ const Customers: React.FC = () => {
         </Grid>
       </Grid>
 
-      <Paper sx={{ p: 2, mb: 2 }}>
+      {/* Filters */}
+      <Paper
+        sx={{
+          p: 2.5,
+          mb: 2,
+          borderRadius: 3,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+        }}
+      >
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} md={8}>
             <TextField
@@ -224,6 +317,8 @@ const Customers: React.FC = () => {
               value={searchTerm}
               onChange={handleSearch}
               size="small"
+              placeholder="Search..."
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
             />
           </Grid>
           <Grid item xs={12} md={4}>
@@ -232,6 +327,7 @@ const Customers: React.FC = () => {
                 variant="contained"
                 startIcon={<AddIcon />}
                 onClick={handleAddCustomer}
+                sx={{ borderRadius: 2, fontWeight: 600 }}
               >
                 Add Customer
               </Button>
@@ -240,7 +336,14 @@ const Customers: React.FC = () => {
         </Grid>
       </Paper>
 
-      <Paper>
+      {/* Table */}
+      <Paper
+        sx={{
+          borderRadius: 3,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+          overflow: 'hidden',
+        }}
+      >
         <TableContainer>
           <Table>
             <TableHead>
@@ -258,14 +361,14 @@ const Customers: React.FC = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
+                  <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                     <CircularProgress />
                   </TableCell>
                 </TableRow>
               ) : customers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
-                    <Typography variant="body2" color="textSecondary">
+                  <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                       No customers found
                     </Typography>
                   </TableCell>
@@ -274,36 +377,63 @@ const Customers: React.FC = () => {
                 customers.map((customer) => (
                   <TableRow key={customer.id} hover>
                     <TableCell>
-                      <Box>
-                        <Typography variant="subtitle2">{customer.name}</Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          ID: {customer.id.slice(0, 8)}...
-                        </Typography>
+                      <Box display="flex" alignItems="center" gap={1.5}>
+                        <Box
+                          sx={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 2,
+                            bgcolor: 'rgba(26, 115, 232, 0.1)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <PersonIcon sx={{ color: '#1A73E8', fontSize: 20 }} />
+                        </Box>
+                        <Box>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                            {customer.name}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                            ID: {customer.id.slice(0, 8)}...
+                          </Typography>
+                        </Box>
                       </Box>
                     </TableCell>
                     <TableCell>
                       <Box display="flex" alignItems="center" gap={1}>
-                        <PhoneIcon fontSize="small" color="action" />
-                        <Typography variant="body2">{customer.phone}</Typography>
+                        <PhoneIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {customer.phone}
+                        </Typography>
                       </Box>
                     </TableCell>
                     <TableCell>
                       <Tooltip title={formatAddress(customer)} arrow>
-                        <Typography variant="body2" noWrap sx={{ maxWidth: 200 }}>
+                        <Typography
+                          variant="body2"
+                          noWrap
+                          sx={{
+                            maxWidth: 200,
+                            display: 'block',
+                            color: 'text.secondary',
+                          }}
+                        >
                           {formatAddress(customer)}
                         </Typography>
                       </Tooltip>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         {customer.stats?.totalOrders || 0}
                       </Typography>
-                      <Typography variant="caption" color="textSecondary">
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                         {customer.stats?.completedOrders || 0} completed
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         {formatCurrency(customer.stats?.totalSpent || 0)}
                       </Typography>
                     </TableCell>
@@ -324,15 +454,17 @@ const Customers: React.FC = () => {
                       <IconButton
                         size="small"
                         onClick={() => handleViewCustomer(customer)}
+                        sx={{ borderRadius: 2 }}
                         title="View Details"
                       >
-                        <ViewIcon />
+                        <ViewIcon fontSize="small" />
                       </IconButton>
                       <IconButton
                         size="small"
                         title="Edit"
+                        sx={{ borderRadius: 2 }}
                       >
-                        <EditIcon />
+                        <EditIcon fontSize="small" />
                       </IconButton>
                     </TableCell>
                   </TableRow>
@@ -349,14 +481,21 @@ const Customers: React.FC = () => {
           page={page}
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
+          sx={{ borderTop: '1px solid #E8EAED' }}
         />
       </Paper>
 
       {/* Add Customer Dialog */}
-      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add New Customer</DialogTitle>
+      <Dialog
+        open={addDialogOpen}
+        onClose={() => setAddDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600 }}>Add New Customer</DialogTitle>
         <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
             <Grid item xs={12}>
               <TextField
                 fullWidth
@@ -364,6 +503,8 @@ const Customers: React.FC = () => {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Grid>
             <Grid item xs={12}>
@@ -373,6 +514,8 @@ const Customers: React.FC = () => {
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 required
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Grid>
             <Grid item xs={12}>
@@ -383,6 +526,8 @@ const Customers: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 multiline
                 rows={2}
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -391,6 +536,8 @@ const Customers: React.FC = () => {
                 label="Flat/Door Number"
                 value={formData.flat_number}
                 onChange={(e) => setFormData({ ...formData, flat_number: e.target.value })}
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -399,6 +546,8 @@ const Customers: React.FC = () => {
                 label="Floor"
                 value={formData.floor}
                 onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Grid>
             <Grid item xs={12}>
@@ -407,51 +556,64 @@ const Customers: React.FC = () => {
                 label="Building Name"
                 value={formData.building_name}
                 onChange={(e) => setFormData({ ...formData, building_name: e.target.value })}
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAddDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained">Add Customer</Button>
+        <DialogActions sx={{ p: 2.5, pt: 0 }}>
+          <Button onClick={() => setAddDialogOpen(false)} sx={{ borderRadius: 2 }}>Cancel</Button>
+          <Button variant="contained" sx={{ borderRadius: 2, fontWeight: 600 }}>Add Customer</Button>
         </DialogActions>
       </Dialog>
 
       {/* View Customer Dialog */}
-      <Dialog open={viewDialogOpen} onClose={() => setViewDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Customer Details</DialogTitle>
+      <Dialog
+        open={viewDialogOpen}
+        onClose={() => setViewDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600 }}>Customer Details</DialogTitle>
         <DialogContent>
           {selectedCustomer && (
-            <Grid container spacing={3} sx={{ mt: 1 }}>
+            <Grid container spacing={3} sx={{ mt: 0.5 }}>
               <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" gutterBottom>Personal Information</Typography>
-                <Box sx={{ bgcolor: 'grey.50', p: 2, borderRadius: 1 }}>
-                  <Typography variant="body2"><strong>Name:</strong> {selectedCustomer.name}</Typography>
-                  <Typography variant="body2"><strong>Phone:</strong> {selectedCustomer.phone}</Typography>
-                  <Typography variant="body2"><strong>Status:</strong>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5 }}>Personal Information</Typography>
+                <Box sx={{ bgcolor: '#F8F9FA', p: 2.5, borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 1 }}><strong>Name:</strong> {selectedCustomer.name}</Typography>
+                  <Typography variant="body2" sx={{ mb: 1 }}><strong>Phone:</strong> {selectedCustomer.phone}</Typography>
+                  <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <strong>Status:</strong>
                     <Chip
                       label={selectedCustomer.status || 'Active'}
                       size="small"
-                      color="success"
-                      sx={{ ml: 1 }}
+                      sx={{
+                        bgcolor: '#E8F5E9',
+                        color: '#2E7D32',
+                        fontWeight: 600,
+                        fontSize: '0.75rem',
+                      }}
                     />
                   </Typography>
-                  <Typography variant="body2"><strong>Customer ID:</strong> {selectedCustomer.id}</Typography>
+                  <Typography variant="body2" sx={{ mb: 1 }}><strong>Customer ID:</strong> {selectedCustomer.id}</Typography>
                   <Typography variant="body2"><strong>Joined:</strong> {formatDate(selectedCustomer.created_at)}</Typography>
                 </Box>
               </Grid>
               <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" gutterBottom>Address Information</Typography>
-                <Box sx={{ bgcolor: 'grey.50', p: 2, borderRadius: 1 }}>
-                  <Typography variant="body2"><strong>Building:</strong> {selectedCustomer.building_name || '-'}</Typography>
-                  <Typography variant="body2"><strong>Flat/Door:</strong> {selectedCustomer.flat_number || '-'}</Typography>
-                  <Typography variant="body2"><strong>Floor:</strong> {selectedCustomer.floor || '-'}</Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5 }}>Address Information</Typography>
+                <Box sx={{ bgcolor: '#F8F9FA', p: 2.5, borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 1 }}><strong>Building:</strong> {selectedCustomer.building_name || '-'}</Typography>
+                  <Typography variant="body2" sx={{ mb: 1 }}><strong>Flat/Door:</strong> {selectedCustomer.flat_number || '-'}</Typography>
+                  <Typography variant="body2" sx={{ mb: 1 }}><strong>Floor:</strong> {selectedCustomer.floor || '-'}</Typography>
                   <Typography variant="body2"><strong>Street:</strong> {selectedCustomer.address}</Typography>
                 </Box>
               </Grid>
               <Grid item xs={12}>
-                <Typography variant="subtitle2" gutterBottom>Order Statistics</Typography>
-                <Box sx={{ bgcolor: 'grey.50', p: 2, borderRadius: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5 }}>Order Statistics</Typography>
+                <Box sx={{ bgcolor: '#F8F9FA', p: 2.5, borderRadius: 2 }}>
                   <Grid container spacing={2}>
                     <Grid item xs={6} md={3}>
                       <Typography variant="body2"><strong>Total Orders:</strong> {selectedCustomer.stats?.totalOrders || 0}</Typography>
@@ -471,8 +633,8 @@ const Customers: React.FC = () => {
             </Grid>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setViewDialogOpen(false)}>Close</Button>
+        <DialogActions sx={{ p: 2.5, pt: 0 }}>
+          <Button onClick={() => setViewDialogOpen(false)} sx={{ borderRadius: 2 }}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>

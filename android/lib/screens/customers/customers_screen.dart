@@ -39,14 +39,19 @@ class _CustomersScreenState extends State<CustomersScreen>
     setState(() => _isLoading = true);
 
     try {
-      final results = await Future.wait([
-        _customerService.getCustomers(),
-        _customerService.getCustomerInsights(),
-      ]);
+      final customers = await _customerService.getAllCustomers();
 
       setState(() {
-        _customers = results[0] as List<Map<String, dynamic>>;
-        _insights = results[1] as Map<String, dynamic>;
+        _customers = customers.map((c) => {
+          'id': c.id,
+          'vendor_id': c.vendorId,
+          'name': c.name,
+          'phone': c.phone,
+          'address': c.address,
+          'flat_number': c.flatNumber,
+          'floor': c.floor,
+          'building_name': c.buildingName,
+        }).toList();
         _isLoading = false;
       });
     } catch (e) {
@@ -386,8 +391,17 @@ class _CustomersScreenState extends State<CustomersScreen>
     }
 
     try {
-      final customers = await _customerService.getCustomers(search: query);
-      setState(() => _customers = customers);
+      final customers = await _customerService.searchCustomers(query);
+      setState(() => _customers = customers.map((c) => {
+        'id': c.id,
+        'vendor_id': c.vendorId,
+        'name': c.name,
+        'phone': c.phone,
+        'address': c.address,
+        'flat_number': c.flatNumber,
+        'floor': c.floor,
+        'building_name': c.buildingName,
+      }).toList());
     } catch (e) {
       // Handle error silently
     }

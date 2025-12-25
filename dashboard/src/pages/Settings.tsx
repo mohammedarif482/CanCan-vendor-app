@@ -29,12 +29,14 @@ import {
   Settings as SettingsIcon,
   Save as SaveIcon,
   Edit as EditIcon,
+  Lock as LockIcon,
+  Smartphone as SmartphoneIcon,
+  AdminPanelSettings as AdminIcon,
 } from '@mui/icons-material';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 
 const Settings: React.FC = () => {
-  const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.auth);
 
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
@@ -65,35 +67,63 @@ const Settings: React.FC = () => {
   });
 
   const handlePasswordChange = () => {
-    // Handle password change logic here
     setPasswordDialogOpen(false);
     setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
   };
 
   const handleSaveSettings = () => {
-    // Handle saving settings logic here
     alert('Settings saved successfully!');
   };
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Settings
-      </Typography>
+      {/* Header */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 600, color: '#202124', mb: 0.5 }}>
+          Settings
+        </Typography>
+        <Typography variant="body1" sx={{ color: 'text.secondary' }}>
+          Manage your account and application settings
+        </Typography>
+      </Box>
 
       <Grid container spacing={3}>
         {/* Profile Settings */}
         <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" mb={2}>
-                <PersonIcon sx={{ mr: 2, color: 'primary.main' }} />
-                <Typography variant="h6">Profile Settings</Typography>
+          <Card
+            sx={{
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              height: '100%',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" mb={3}>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    bgcolor: 'rgba(26, 115, 232, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    mr: 2,
+                  }}
+                >
+                  <PersonIcon sx={{ color: '#1A73E8', fontSize: 24 }} />
+                </Box>
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>Profile Settings</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    Manage your profile information
+                  </Typography>
+                </Box>
               </Box>
-              <Box sx={{ bgcolor: 'grey.50', p: 2, borderRadius: 1, mb: 2 }}>
-                <Typography variant="body2"><strong>Name:</strong> {user?.name || 'Admin User'}</Typography>
-                <Typography variant="body2"><strong>Email:</strong> {user?.email || 'admin@cancan.com'}</Typography>
-                <Typography variant="body2"><strong>Role:</strong> {user?.role || 'Administrator'}</Typography>
+              <Box sx={{ bgcolor: '#F8F9FA', p: 3, borderRadius: 2, mb: 3 }}>
+                <Typography variant="body2" sx={{ mb: 1.5 }}><strong>Name:</strong> {user?.name || 'Admin User'}</Typography>
+                <Typography variant="body2" sx={{ mb: 1.5 }}><strong>Email:</strong> {user?.email || 'admin@cancan.com'}</Typography>
+                <Typography variant="body2" sx={{ mb: 1.5 }}><strong>Role:</strong> {user?.role || 'Administrator'}</Typography>
                 <Typography variant="body2"><strong>Last Login:</strong> {new Date().toLocaleDateString()}</Typography>
               </Box>
               <Button
@@ -101,6 +131,7 @@ const Settings: React.FC = () => {
                 startIcon={<EditIcon />}
                 onClick={() => setPasswordDialogOpen(true)}
                 fullWidth
+                sx={{ borderRadius: 2, fontWeight: 600 }}
               >
                 Change Password
               </Button>
@@ -110,65 +141,165 @@ const Settings: React.FC = () => {
 
         {/* Notification Settings */}
         <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" mb={2}>
-                <NotificationsIcon sx={{ mr: 2, color: 'primary.main' }} />
-                <Typography variant="h6">Notification Settings</Typography>
+          <Card
+            sx={{
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              height: '100%',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" mb={3}>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    bgcolor: 'rgba(52, 168, 83, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    mr: 2,
+                  }}
+                >
+                  <NotificationsIcon sx={{ color: '#34A853', fontSize: 24 }} />
+                </Box>
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>Notification Settings</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    Configure your notification preferences
+                  </Typography>
+                </Box>
               </Box>
-              <List dense>
-                <ListItem>
-                  <ListItemText primary="Email Notifications" secondary="Receive updates via email" />
+              <List disablePadding>
+                <ListItem
+                  sx={{
+                    px: 0,
+                    py: 1.5,
+                    borderRadius: 2,
+                    '&:hover': { bgcolor: '#F8F9FA' },
+                  }}
+                >
+                  <ListItemText
+                    primary="Email Notifications"
+                    secondary="Receive updates via email"
+                    primaryTypographyProps={{ fontWeight: 500 }}
+                  />
                   <ListItemSecondaryAction>
                     <Switch
                       checked={notifications.emailNotifications}
                       onChange={(e) => setNotifications({...notifications, emailNotifications: e.target.checked})}
-                    />
-                  </ListItemSecondaryAction>
-                </ListItem>
-                <ListItem>
-                  <ListItemText primary="SMS Notifications" secondary="Receive SMS alerts" />
-                  <ListItemSecondaryAction>
-                    <Switch
-                      checked={notifications.smsNotifications}
-                      onChange={(e) => setNotifications({...notifications, smsNotifications: e.target.checked})}
-                    />
-                  </ListItemSecondaryAction>
-                </ListItem>
-                <ListItem>
-                  <ListItemText primary="Push Notifications" secondary="Browser push notifications" />
-                  <ListItemSecondaryAction>
-                    <Switch
-                      checked={notifications.pushNotifications}
-                      onChange={(e) => setNotifications({...notifications, pushNotifications: e.target.checked})}
+                      sx={{ mr: -1 }}
                     />
                   </ListItemSecondaryAction>
                 </ListItem>
                 <Divider />
-                <ListItem>
-                  <ListItemText primary="Order Alerts" secondary="New order notifications" />
+                <ListItem
+                  sx={{
+                    px: 0,
+                    py: 1.5,
+                    borderRadius: 2,
+                    '&:hover': { bgcolor: '#F8F9FA' },
+                  }}
+                >
+                  <ListItemText
+                    primary="SMS Notifications"
+                    secondary="Receive SMS alerts"
+                    primaryTypographyProps={{ fontWeight: 500 }}
+                  />
+                  <ListItemSecondaryAction>
+                    <Switch
+                      checked={notifications.smsNotifications}
+                      onChange={(e) => setNotifications({...notifications, smsNotifications: e.target.checked})}
+                      sx={{ mr: -1 }}
+                    />
+                  </ListItemSecondaryAction>
+                </ListItem>
+                <Divider />
+                <ListItem
+                  sx={{
+                    px: 0,
+                    py: 1.5,
+                    borderRadius: 2,
+                    '&:hover': { bgcolor: '#F8F9FA' },
+                  }}
+                >
+                  <ListItemText
+                    primary="Push Notifications"
+                    secondary="Browser push notifications"
+                    primaryTypographyProps={{ fontWeight: 500 }}
+                  />
+                  <ListItemSecondaryAction>
+                    <Switch
+                      checked={notifications.pushNotifications}
+                      onChange={(e) => setNotifications({...notifications, pushNotifications: e.target.checked})}
+                      sx={{ mr: -1 }}
+                    />
+                  </ListItemSecondaryAction>
+                </ListItem>
+                <Divider sx={{ my: 2 }} />
+                <ListItem
+                  sx={{
+                    px: 0,
+                    py: 1.5,
+                    borderRadius: 2,
+                    '&:hover': { bgcolor: '#F8F9FA' },
+                  }}
+                >
+                  <ListItemText
+                    primary="Order Alerts"
+                    secondary="New order notifications"
+                    primaryTypographyProps={{ fontWeight: 500 }}
+                  />
                   <ListItemSecondaryAction>
                     <Switch
                       checked={notifications.orderAlerts}
                       onChange={(e) => setNotifications({...notifications, orderAlerts: e.target.checked})}
+                      sx={{ mr: -1 }}
                     />
                   </ListItemSecondaryAction>
                 </ListItem>
-                <ListItem>
-                  <ListItemText primary="Payment Alerts" secondary="Payment status updates" />
+                <Divider />
+                <ListItem
+                  sx={{
+                    px: 0,
+                    py: 1.5,
+                    borderRadius: 2,
+                    '&:hover': { bgcolor: '#F8F9FA' },
+                  }}
+                >
+                  <ListItemText
+                    primary="Payment Alerts"
+                    secondary="Payment status updates"
+                    primaryTypographyProps={{ fontWeight: 500 }}
+                  />
                   <ListItemSecondaryAction>
                     <Switch
                       checked={notifications.paymentAlerts}
                       onChange={(e) => setNotifications({...notifications, paymentAlerts: e.target.checked})}
+                      sx={{ mr: -1 }}
                     />
                   </ListItemSecondaryAction>
                 </ListItem>
-                <ListItem>
-                  <ListItemText primary="System Alerts" secondary="System maintenance" />
+                <Divider />
+                <ListItem
+                  sx={{
+                    px: 0,
+                    py: 1.5,
+                    borderRadius: 2,
+                    '&:hover': { bgcolor: '#F8F9FA' },
+                  }}
+                >
+                  <ListItemText
+                    primary="System Alerts"
+                    secondary="System maintenance"
+                    primaryTypographyProps={{ fontWeight: 500 }}
+                  />
                   <ListItemSecondaryAction>
                     <Switch
                       checked={notifications.systemAlerts}
                       onChange={(e) => setNotifications({...notifications, systemAlerts: e.target.checked})}
+                      sx={{ mr: -1 }}
                     />
                   </ListItemSecondaryAction>
                 </ListItem>
@@ -179,58 +310,121 @@ const Settings: React.FC = () => {
 
         {/* System Settings */}
         <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" mb={2}>
-                <SettingsIcon sx={{ mr: 2, color: 'primary.main' }} />
-                <Typography variant="h6">System Settings</Typography>
+          <Card
+            sx={{
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              height: '100%',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" mb={3}>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    bgcolor: 'rgba(147, 52, 234, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    mr: 2,
+                  }}
+                >
+                  <AdminIcon sx={{ color: '#9334EA', fontSize: 24 }} />
+                </Box>
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>System Settings</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    Configure system behavior
+                  </Typography>
+                </Box>
               </Box>
-              <List dense>
-                <ListItem>
+              <List disablePadding>
+                <ListItem
+                  sx={{
+                    px: 0,
+                    py: 1.5,
+                    borderRadius: 2,
+                    '&:hover': { bgcolor: '#F8F9FA' },
+                  }}
+                >
                   <ListItemText
                     primary="Auto-Assign Orders"
                     secondary="Automatically assign orders to vendors"
+                    primaryTypographyProps={{ fontWeight: 500 }}
                   />
                   <ListItemSecondaryAction>
                     <Switch
                       checked={systemSettings.autoAssignOrders}
                       onChange={(e) => setSystemSettings({...systemSettings, autoAssignOrders: e.target.checked})}
+                      sx={{ mr: -1 }}
                     />
                   </ListItemSecondaryAction>
                 </ListItem>
-                <ListItem>
+                <Divider />
+                <ListItem
+                  sx={{
+                    px: 0,
+                    py: 1.5,
+                    borderRadius: 2,
+                    '&:hover': { bgcolor: '#F8F9FA' },
+                  }}
+                >
                   <ListItemText
                     primary="Require Approval"
                     secondary="Require manual approval for new vendors"
+                    primaryTypographyProps={{ fontWeight: 500 }}
                   />
                   <ListItemSecondaryAction>
                     <Switch
                       checked={systemSettings.requireApproval}
                       onChange={(e) => setSystemSettings({...systemSettings, requireApproval: e.target.checked})}
+                      sx={{ mr: -1 }}
                     />
                   </ListItemSecondaryAction>
                 </ListItem>
-                <ListItem>
+                <Divider />
+                <ListItem
+                  sx={{
+                    px: 0,
+                    py: 1.5,
+                    borderRadius: 2,
+                    '&:hover': { bgcolor: '#F8F9FA' },
+                  }}
+                >
                   <ListItemText
                     primary="Customer Signup"
                     secondary="Allow customers to self-register"
+                    primaryTypographyProps={{ fontWeight: 500 }}
                   />
                   <ListItemSecondaryAction>
                     <Switch
                       checked={systemSettings.enableCustomerSignup}
                       onChange={(e) => setSystemSettings({...systemSettings, enableCustomerSignup: e.target.checked})}
+                      sx={{ mr: -1 }}
                     />
                   </ListItemSecondaryAction>
                 </ListItem>
-                <ListItem>
+                <Divider />
+                <ListItem
+                  sx={{
+                    px: 0,
+                    py: 1.5,
+                    borderRadius: 2,
+                    '&:hover': { bgcolor: '#F8F9FA' },
+                  }}
+                >
                   <ListItemText
                     primary="Maintenance Mode"
                     secondary="Temporarily disable customer access"
+                    primaryTypographyProps={{ fontWeight: 500 }}
                   />
                   <ListItemSecondaryAction>
                     <Switch
                       checked={systemSettings.maintenanceMode}
                       onChange={(e) => setSystemSettings({...systemSettings, maintenanceMode: e.target.checked})}
+                      sx={{ mr: -1 }}
                     />
                   </ListItemSecondaryAction>
                 </ListItem>
@@ -241,11 +435,35 @@ const Settings: React.FC = () => {
 
         {/* Company Information */}
         <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" mb={2}>
-                <SettingsIcon sx={{ mr: 2, color: 'primary.main' }} />
-                <Typography variant="h6">Company Information</Typography>
+          <Card
+            sx={{
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              height: '100%',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" mb={3}>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    bgcolor: 'rgba(251, 188, 5, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    mr: 2,
+                  }}
+                >
+                  <SettingsIcon sx={{ color: '#FBBC05', fontSize: 24 }} />
+                </Box>
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>Company Information</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    Update company details
+                  </Typography>
+                </Box>
               </Box>
               <Grid container spacing={2}>
                 <Grid item xs={12}>
@@ -255,6 +473,7 @@ const Settings: React.FC = () => {
                     value={companyInfo.name}
                     onChange={(e) => setCompanyInfo({...companyInfo, name: e.target.value})}
                     size="small"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                   />
                 </Grid>
                 <Grid item xs={12}>
@@ -264,6 +483,7 @@ const Settings: React.FC = () => {
                     value={companyInfo.email}
                     onChange={(e) => setCompanyInfo({...companyInfo, email: e.target.value})}
                     size="small"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                   />
                 </Grid>
                 <Grid item xs={12}>
@@ -273,6 +493,7 @@ const Settings: React.FC = () => {
                     value={companyInfo.phone}
                     onChange={(e) => setCompanyInfo({...companyInfo, phone: e.target.value})}
                     size="small"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                   />
                 </Grid>
                 <Grid item xs={12}>
@@ -284,6 +505,7 @@ const Settings: React.FC = () => {
                     multiline
                     rows={2}
                     size="small"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                   />
                 </Grid>
               </Grid>
@@ -293,42 +515,114 @@ const Settings: React.FC = () => {
 
         {/* Security Settings */}
         <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" mb={2}>
-                <SecurityIcon sx={{ mr: 2, color: 'primary.main' }} />
-                <Typography variant="h6">Security Settings</Typography>
+          <Card
+            sx={{
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" mb={3}>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    bgcolor: 'rgba(2, 136, 209, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    mr: 2,
+                  }}
+                >
+                  <SecurityIcon sx={{ color: '#0288D1', fontSize: 24 }} />
+                </Box>
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>Security Settings</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    Manage your account security
+                  </Typography>
+                </Box>
               </Box>
-              <Alert severity="info" sx={{ mb: 2 }}>
+              <Alert
+                severity="info"
+                sx={{
+                  mb: 3,
+                  borderRadius: 2,
+                  '& .MuiAlert-icon': { alignItems: 'center' },
+                }}
+              >
                 Your account is protected with industry-standard encryption and security measures.
               </Alert>
               <Grid container spacing={3}>
                 <Grid item xs={12} md={4}>
-                  <Box sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
-                    <Typography variant="subtitle2" gutterBottom>Two-Factor Authentication</Typography>
-                    <Typography variant="body2" color="textSecondary" gutterBottom>
+                  <Paper
+                    sx={{
+                      p: 3,
+                      borderRadius: 2,
+                      border: '1px solid #E8EAED',
+                      bgcolor: '#F8F9FA',
+                    }}
+                  >
+                    <Box display="flex" alignItems="center" gap={1.5} mb={2}>
+                      <LockIcon sx={{ color: '#1A73E8' }} />
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                        Two-Factor Authentication
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
                       Add an extra layer of security to your account
                     </Typography>
-                    <Button variant="outlined" size="small">Enable 2FA</Button>
-                  </Box>
+                    <Button variant="outlined" size="small" sx={{ borderRadius: 2 }}>
+                      Enable 2FA
+                    </Button>
+                  </Paper>
                 </Grid>
                 <Grid item xs={12} md={4}>
-                  <Box sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
-                    <Typography variant="subtitle2" gutterBottom>Session Management</Typography>
-                    <Typography variant="body2" color="textSecondary" gutterBottom>
+                  <Paper
+                    sx={{
+                      p: 3,
+                      borderRadius: 2,
+                      border: '1px solid #E8EAED',
+                      bgcolor: '#F8F9FA',
+                    }}
+                  >
+                    <Box display="flex" alignItems="center" gap={1.5} mb={2}>
+                      <SmartphoneIcon sx={{ color: '#34A853' }} />
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                        Session Management
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
                       View and manage active sessions
                     </Typography>
-                    <Button variant="outlined" size="small">Manage Sessions</Button>
-                  </Box>
+                    <Button variant="outlined" size="small" sx={{ borderRadius: 2 }}>
+                      Manage Sessions
+                    </Button>
+                  </Paper>
                 </Grid>
                 <Grid item xs={12} md={4}>
-                  <Box sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
-                    <Typography variant="subtitle2" gutterBottom>API Keys</Typography>
-                    <Typography variant="body2" color="textSecondary" gutterBottom>
+                  <Paper
+                    sx={{
+                      p: 3,
+                      borderRadius: 2,
+                      border: '1px solid #E8EAED',
+                      bgcolor: '#F8F9FA',
+                    }}
+                  >
+                    <Box display="flex" alignItems="center" gap={1.5} mb={2}>
+                      <SettingsIcon sx={{ color: '#FBBC05' }} />
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                        API Keys
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
                       Generate and manage API access keys
                     </Typography>
-                    <Button variant="outlined" size="small">Manage Keys</Button>
-                  </Box>
+                    <Button variant="outlined" size="small" sx={{ borderRadius: 2 }}>
+                      Manage Keys
+                    </Button>
+                  </Paper>
                 </Grid>
               </Grid>
             </CardContent>
@@ -337,12 +631,13 @@ const Settings: React.FC = () => {
 
         {/* Save Settings Button */}
         <Grid item xs={12}>
-          <Box display="flex" justifyContent="flex-end">
+          <Box display="flex" justifyContent="flex-end" sx={{ mt: 2 }}>
             <Button
               variant="contained"
               startIcon={<SaveIcon />}
               onClick={handleSaveSettings}
               size="large"
+              sx={{ borderRadius: 2, fontWeight: 600 }}
             >
               Save All Settings
             </Button>
@@ -351,8 +646,14 @@ const Settings: React.FC = () => {
       </Grid>
 
       {/* Change Password Dialog */}
-      <Dialog open={passwordDialogOpen} onClose={() => setPasswordDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Change Password</DialogTitle>
+      <Dialog
+        open={passwordDialogOpen}
+        onClose={() => setPasswordDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600 }}>Change Password</DialogTitle>
         <DialogContent>
           <TextField
             fullWidth
@@ -360,7 +661,7 @@ const Settings: React.FC = () => {
             type="password"
             value={passwordForm.currentPassword}
             onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
-            sx={{ mt: 2 }}
+            sx={{ mt: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
           />
           <TextField
             fullWidth
@@ -368,7 +669,7 @@ const Settings: React.FC = () => {
             type="password"
             value={passwordForm.newPassword}
             onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})}
-            sx={{ mt: 2 }}
+            sx={{ mt: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
           />
           <TextField
             fullWidth
@@ -376,12 +677,12 @@ const Settings: React.FC = () => {
             type="password"
             value={passwordForm.confirmPassword}
             onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
-            sx={{ mt: 2 }}
+            sx={{ mt: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPasswordDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handlePasswordChange}>
+        <DialogActions sx={{ p: 2.5, pt: 0 }}>
+          <Button onClick={() => setPasswordDialogOpen(false)} sx={{ borderRadius: 2 }}>Cancel</Button>
+          <Button variant="contained" onClick={handlePasswordChange} sx={{ borderRadius: 2, fontWeight: 600 }}>
             Update Password
           </Button>
         </DialogActions>

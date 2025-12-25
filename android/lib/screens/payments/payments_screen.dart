@@ -21,9 +21,14 @@ class _PaymentsScreenState extends State<PaymentsScreen>
   final _paymentService = PaymentService();
   bool _isLoading = true;
 
+  List<Order> _allCompletedOrders = [];
   List<Order> _unpaidOrders = [];
   List<Map<String, dynamic>> _paymentHistory = [];
   Map<String, dynamic> _paymentStatistics = {};
+
+  // Date range for filtering
+  DateTime _startDate = DateTime.now().subtract(const Duration(days: 30));
+  DateTime _endDate = DateTime.now();
 
   // Summary data
   double _totalPending = 0.0;
