@@ -590,8 +590,7 @@ class _PaymentsScreenState extends State<PaymentsScreen>
   Future<void> _markAsPaid(Order order) async {
     final result = await _orderService.updateOrderStatus(
       orderId: order.id,
-      isDelivered: order.isDelivered,
-      isPaid: true,
+      status: order.status,
     );
 
     if (result['success']) {

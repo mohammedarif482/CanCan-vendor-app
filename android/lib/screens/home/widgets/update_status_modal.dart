@@ -194,10 +194,15 @@ class _UpdateStatusModalState extends State<UpdateStatusModal> {
     setState(() => _isLoading = true);
 
     try {
+      // Update order status based on selections
+      String newStatus = widget.order.status;
+      if (_isDelivered) {
+        newStatus = 'delivered';
+      }
+
       final result = await _orderService.updateOrderStatus(
         orderId: widget.order.id,
-        isDelivered: _isDelivered,
-        isPaid: _isPaid,
+        status: newStatus,
       );
 
       if (!mounted) return;

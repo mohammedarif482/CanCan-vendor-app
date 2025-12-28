@@ -1,15 +1,73 @@
-import 'package:uuid/uuid.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
-import '../config/app_config.dart';
-import '../models/vendor.dart';
 import '../utils/logger.dart';
 
-/// Vendor Service - Handles vendor profile CRUD operations
+/// Vendor Service - Handles vendor data operations with Supabase
 class VendorService {
   final _supabase = SupabaseConfig.client;
-  final _uuid = const Uuid();
 
-  /// Create vendor profile (first-time setup)
+  /// Get current vendor profile from Supabase
+  Future<Map<String, dynamic>?> getVendorProfile() async {
+    try {
+      final vendorId = SupabaseConfig.currentVendorId;
+      if (vendorId == null) {
+        AppLogger.w('No vendor ID found');
+        return null;
+      }
+
+      AppLogger.d('Fetching vendor profile for: $vendorId');
+
+      final response = await _supabase
+          .from('vendors')
+          .select()
+          .eq('id', vendorId)
+          .maybeSingle();
+
+      if (response == null) {
+        AppLogger.w('Vendor not found: $vendorId');
+        return null;
+      }
+
+      AppLogger.i('Vendor profile fetched successfully');
+      return {
+        'id': response['id'],
+        'name': response['owner_name'] ?? response['name'],
+        'business_name': response['business_name'],
+        'phone': response['phone'],
+        'email': response['email'],
+        'address': response['address'],
+        'flat_number': response['flat_number'],
+        'floor': response['floor'],
+        'building_name': response['building_name'],
+        'landmark': response['landmark'],
+        'city': response['city'],
+        'state': response['state'],
+        'pincode': response['pincode'],
+        'latitude': response['latitude'],
+        'longitude': response['longitude'],
+        'is_active': response['is_active'],
+        'is_verified': response['is_verified'],
+        'is_on_vacation': response['is_on_vacation'],
+        'vacation_reason': response['vacation_reason'],
+        'vacation_end_date': response['vacation_end_date'],
+        'business_hours': response['business_hours'],
+        'rating': response['rating'],
+        'total_orders': response['total_orders'],
+        'completed_orders': response['completed_orders'],
+        'cancelled_orders': response['cancelled_orders'],
+        'average_delivery_time': response['average_delivery_time'],
+        'total_revenue': response['total_revenue'],
+        'commission_rate': response['commission_rate'],
+        'wallet_balance': response['wallet_balance'],
+        'service_areas': response['service_areas'],
+      };
+    } catch (e) {
+      AppLogger.e('Error fetching vendor profile: $e');
+      return null;
+    }
+  }
+
+  /// Create new vendor profile
   Future<Map<String, dynamic>> createVendorProfile({
     required String phone,
     required String name,
@@ -17,107 +75,113 @@ class VendorService {
     required String address,
   }) async {
     try {
-      // Add +91 prefix if not present
-      final fullPhone = phone.startsWith('+91') ? phone : '+91$phone';
+      AppLogger.d('Creating vendor profile for: $phone');
 
-      // Generate a proper UUID for the vendor
-      final vendorId = SupabaseConfig.currentVendorId ?? _uuid.v4();
-
-      AppLogger.d('Creating vendor profile: $name ($fullPhone) with ID: $vendorId');
-
-      // Check if vendor already exists by phone
-      final existing = await _supabase
-          .from('vendors')
-          .select()
-          .eq('phone', fullPhone)
-          .maybeSingle();
-
-      if (existing != null) {
-        AppLogger.w('Vendor already exists');
-        return {
-          'success': true, // Return success since profile exists
-          'message': 'Profile already exists',
-          'vendorId': existing['id'],
-        };
-      }
-
-      // Insert new vendor with proper UUID
-      await _supabase.from('vendors').insert({
-        'id': vendorId,
-        'phone': fullPhone,
-        'name': name,
+      final vendorData = {
+        'phone': phone,
+        'owner_name': name,
         'business_name': businessName,
         'address': address,
         'is_active': true,
-      });
+        'is_verified': false,
+        'is_on_vacation': false,
+        'rating': 0.0,
+        'total_orders': 0,
+        'completed_orders': 0,
+        'cancelled_orders': 0,
+        'total_revenue': 0.0,
+        'commission_rate': 0.15,
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      };
 
-      AppLogger.i('Vendor profile created successfully: $vendorId');
+      final response = await _supabase
+          .from('vendors')
+          .insert(vendorData)
+          .select('id')
+          .maybeSingle();
 
+      if (response == null) {
+        return {
+          'success': false,
+          'message': 'Failed to create vendor profile',
+        };
+      }
+
+      AppLogger.i('Vendor profile created successfully: ${response['id']}');
       return {
         'success': true,
         'message': 'Profile created successfully',
-        'vendorId': vendorId,
+        'vendorId': response['id'],
       };
     } catch (e) {
-      AppLogger.e('Error creating vendor profile: $e (${e.runtimeType})');
+      AppLogger.e('Error creating vendor profile: $e');
       return {
         'success': false,
-        'message': 'Failed to create profile: ${e.toString()}',
+        'message': 'Something went wrong. Please try again.',
+        'error': e.toString(),
       };
-    }
-  }
-
-  /// Get vendor profile
-  Future<Map<String, dynamic>?> getVendorProfile() async {
-    try {
-      final vendorId = SupabaseConfig.currentVendorId;
-
-      if (vendorId == null) return null;
-
-      final data =
-          await _supabase.from('vendors').select().eq('id', vendorId).single();
-
-      return data;
-    } catch (e) {
-      AppLogger.e('Error fetching vendor profile: $e');
-      return null;
     }
   }
 
   /// Update vendor profile
   Future<Map<String, dynamic>> updateVendorProfile({
-    String? name,
-    String? businessName,
-    String? address,
-    int? maxDailyDeliveries,
-    int? maxDailyCans,
-    Map<String, dynamic>? workingHours,
-    List<String>? workingDays,
+    required String name,
+    required String businessName,
+    required String address,
+    String? flatNumber,
+    String? floor,
+    String? buildingName,
+    String? landmark,
+    String? city,
+    String? state,
+    String? pincode,
+    double? latitude,
+    double? longitude,
   }) async {
     try {
       final vendorId = SupabaseConfig.currentVendorId;
-
       if (vendorId == null) {
         return {
           'success': false,
-          'message': 'User not authenticated',
+          'message': 'No vendor ID found',
         };
       }
 
-      final updates = <String, dynamic>{};
+      AppLogger.d('Updating vendor profile: $vendorId');
 
-      if (name != null) updates['name'] = name;
-      if (businessName != null) updates['business_name'] = businessName;
-      if (address != null) updates['address'] = address;
-      if (maxDailyDeliveries != null) {
-        updates['max_daily_deliveries'] = maxDailyDeliveries;
+      final updateData = <String, dynamic>{
+        'owner_name': name,
+        'business_name': businessName,
+        'address': address,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      if (flatNumber != null) updateData['flat_number'] = flatNumber;
+      if (floor != null) updateData['floor'] = floor;
+      if (buildingName != null) updateData['building_name'] = buildingName;
+      if (landmark != null) updateData['landmark'] = landmark;
+      if (city != null) updateData['city'] = city;
+      if (state != null) updateData['state'] = state;
+      if (pincode != null) updateData['pincode'] = pincode;
+      if (latitude != null) updateData['latitude'] = latitude;
+      if (longitude != null) updateData['longitude'] = longitude;
+
+      final error = await _supabase
+          .from('vendors')
+          .update(updateData)
+          .eq('id', vendorId);
+
+      if (error != null) {
+        AppLogger.e('Error updating vendor profile: $error');
+        return {
+          'success': false,
+          'message': 'Failed to update profile',
+          'error': error.toString(),
+        };
       }
-      if (maxDailyCans != null) updates['max_daily_cans'] = maxDailyCans;
-      if (workingHours != null) updates['working_hours'] = workingHours;
-      if (workingDays != null) updates['working_days'] = workingDays;
 
-      await _supabase.from('vendors').update(updates).eq('id', vendorId);
-
+      AppLogger.i('Vendor profile updated successfully');
       return {
         'success': true,
         'message': 'Profile updated successfully',
@@ -126,240 +190,137 @@ class VendorService {
       AppLogger.e('Error updating vendor profile: $e');
       return {
         'success': false,
-        'message': 'Failed to update profile.',
+        'message': 'Something went wrong. Please try again.',
+        'error': e.toString(),
       };
     }
   }
 
-  /// Set vacation mode
-  Future<Map<String, dynamic>> setVacationMode({
+  /// Update business hours
+  Future<Map<String, dynamic>> updateBusinessHours(Map<String, dynamic> businessHours) async {
+    try {
+      final vendorId = SupabaseConfig.currentVendorId;
+      if (vendorId == null) {
+        return {
+          'success': false,
+          'message': 'No vendor ID found',
+        };
+      }
+
+      AppLogger.d('Updating business hours for vendor: $vendorId');
+
+      final error = await _supabase
+          .from('vendors')
+          .update({
+            'business_hours': businessHours,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', vendorId);
+
+      if (error != null) {
+        AppLogger.e('Error updating business hours: $error');
+        return {
+          'success': false,
+          'message': 'Failed to update business hours',
+          'error': error.toString(),
+        };
+      }
+
+      AppLogger.i('Business hours updated successfully');
+      return {
+        'success': true,
+        'message': 'Business hours updated successfully',
+      };
+    } catch (e) {
+      AppLogger.e('Error updating business hours: $e');
+      return {
+        'success': false,
+        'message': 'Something went wrong. Please try again.',
+        'error': e.toString(),
+      };
+    }
+  }
+
+  /// Toggle vacation mode
+  Future<Map<String, dynamic>> toggleVacationMode({
     required bool isOnVacation,
-    DateTime? startDate,
+    String? reason,
     DateTime? endDate,
   }) async {
     try {
       final vendorId = SupabaseConfig.currentVendorId;
-
       if (vendorId == null) {
         return {
           'success': false,
-          'message': 'User not authenticated',
+          'message': 'No vendor ID found',
         };
       }
 
-      await _supabase.from('vendors').update({
-        'is_on_vacation': isOnVacation,
-        'vacation_start_date': startDate?.toIso8601String(),
-        'vacation_end_date': endDate?.toIso8601String(),
-      }).eq('id', vendorId);
+      AppLogger.d('Toggling vacation mode for vendor: $vendorId');
 
-      return {
-        'success': true,
-        'message':
-            isOnVacation ? 'Vacation mode enabled' : 'Vacation mode disabled',
-      };
-    } catch (e) {
-      AppLogger.e('Error setting vacation mode: $e');
-      return {
-        'success': false,
-        'message': 'Failed to update vacation mode.',
-      };
-    }
-  }
-
-  /// Get daily summary
-  Future<Map<String, dynamic>> getDailySummary(DateTime date) async {
-    try {
-      final vendorId = SupabaseConfig.currentVendorId;
-
-      if (vendorId == null) return {'cansToDeliver': 0, 'earnings': 0.0};
-
-      final dateStr = date.toIso8601String().split('T')[0];
-
-      // Get total cans and earnings for the day
-      final orders = await _supabase
-          .from('orders')
-          .select('total_amount')
-          .eq('vendor_id', vendorId)
-          .eq('delivery_date', dateStr)
-          .eq('status', 'pending');
-
-      int totalCans = 0;
-      double totalEarnings = 0.0;
-
-      for (final order in orders) {
-        // Get order items count
-        final items = await _supabase
-            .from('order_items')
-            .select('quantity')
-            .eq('order_id', order['id']);
-
-        for (final item in items) {
-          totalCans += (item['quantity'] as int);
-        }
-
-        totalEarnings += (order['total_amount'] as num).toDouble();
-      }
-
-      return {
-        'cansToDeliver': totalCans,
-        'earnings': totalEarnings,
-      };
-    } catch (e) {
-      AppLogger.e('Error fetching daily summary: $e');
-      return {'cansToDeliver': 0, 'earnings': 0.0};
-    }
-  }
-
-  /// Get vendor profile as Vendor model
-  Future<Vendor?> getCurrentVendor() async {
-    try {
-      final vendorId = SupabaseConfig.currentVendorId;
-      if (vendorId == null) return null;
-
-      final data = await _supabase
+      final error = await _supabase
           .from('vendors')
-          .select()
-          .eq('id', vendorId)
-          .maybeSingle();
-
-      if (data != null) {
-        return Vendor.fromJson(data);
-      }
-      return null;
-    } catch (e) {
-      AppLogger.e('Error fetching vendor: $e');
-      return null;
-    }
-  }
-
-  /// Update vendor location
-  Future<Map<String, dynamic>> updateVendorLocation(
-    double latitude,
-    double longitude,
-    String? address,
-  ) async {
-    try {
-      final vendorId = SupabaseConfig.currentVendorId;
-
-      if (vendorId == null) {
-        return {
-          'success': false,
-          'message': 'User not authenticated',
-        };
-      }
-
-      final updates = <String, dynamic>{
-        'latitude': latitude,
-        'longitude': longitude,
-      };
-
-      if (address != null) {
-        updates['address'] = address;
-      }
-
-      await _supabase.from('vendors').update(updates).eq('id', vendorId);
-
-      return {
-        'success': true,
-        'message': 'Location updated successfully',
-      };
-    } catch (e) {
-      AppLogger.e('Error updating vendor location: $e');
-      return {
-        'success': false,
-        'message': 'Failed to update location.',
-      };
-    }
-  }
-
-  /// Update service areas
-  Future<Map<String, dynamic>> updateServiceAreas(List<String> serviceAreas) async {
-    try {
-      final vendorId = SupabaseConfig.currentVendorId;
-
-      if (vendorId == null) {
-        return {
-          'success': false,
-          'message': 'User not authenticated',
-        };
-      }
-
-      await _supabase
-          .from('vendors')
-          .update({'service_areas': serviceAreas})
+          .update({
+            'is_on_vacation': isOnVacation,
+            'vacation_reason': reason,
+            'vacation_end_date': endDate?.toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          })
           .eq('id', vendorId);
 
+      if (error != null) {
+        AppLogger.e('Error toggling vacation mode: $error');
+        return {
+          'success': false,
+          'message': 'Failed to update vacation mode',
+          'error': error.toString(),
+        };
+      }
+
+      AppLogger.i('Vacation mode updated successfully');
       return {
         'success': true,
-        'message': 'Service areas updated successfully',
+        'message': isOnVacation
+            ? 'Vacation mode enabled'
+            : 'Vacation mode disabled',
       };
     } catch (e) {
-      AppLogger.e('Error updating service areas: $e');
+      AppLogger.e('Error toggling vacation mode: $e');
       return {
         'success': false,
-        'message': 'Failed to update service areas.',
+        'message': 'Something went wrong. Please try again.',
+        'error': e.toString(),
       };
     }
   }
 
-  /// Get vendor performance statistics
-  Future<Map<String, dynamic>> getVendorStats() async {
+  /// Get wallet balance
+  Future<Map<String, dynamic>?> getWalletBalance() async {
     try {
       final vendorId = SupabaseConfig.currentVendorId;
-      if (vendorId == null) return {};
-
-      final now = DateTime.now();
-      final thisMonth = DateTime(now.year, now.month, 1);
-
-      final results = await Future.wait([
-        // Total orders
-        _supabase.from('orders').select('id').eq('vendor_id', vendorId),
-        // This month orders
-        _supabase
-            .from('orders')
-            .select('id, total_amount')
-            .eq('vendor_id', vendorId)
-            .gte('created_at', thisMonth.toIso8601String())
-            .eq('status', 'completed'),
-        // Average rating
-        _supabase
-            .from('vendor_ratings')
-            .select('rating')
-            .eq('vendor_id', vendorId),
-      ]);
-
-      final totalOrders = results[0].length;
-      final thisMonthOrders = results[1] as List;
-      final ratings = results[2] as List;
-
-      double thisMonthRevenue = 0.0;
-      for (final order in thisMonthOrders) {
-        thisMonthRevenue += (order['total_amount'] as num).toDouble();
+      if (vendorId == null) {
+        return null;
       }
 
-      double avgRating = 0.0;
-      if (ratings.isNotEmpty) {
-        double totalRating = 0.0;
-        for (final rating in ratings) {
-          totalRating += (rating['rating'] as num).toDouble();
-        }
-        avgRating = totalRating / ratings.length;
+      AppLogger.d('Fetching wallet balance for vendor: $vendorId');
+
+      final response = await _supabase
+          .from('vendor_wallets')
+          .select()
+          .eq('vendor_id', vendorId)
+          .maybeSingle();
+
+      if (response == null) {
+        return null;
       }
 
       return {
-        'totalOrders': totalOrders,
-        'thisMonthOrders': thisMonthOrders.length,
-        'thisMonthRevenue': thisMonthRevenue,
-        'avgRating': avgRating,
-        'totalRatings': ratings.length,
-        'avgOrderValue': thisMonthOrders.isNotEmpty
-            ? thisMonthRevenue / thisMonthOrders.length
-            : 0.0,
+        'balance': response['balance'] ?? 0.0,
+        'pending_balance': response['pending_balance'] ?? 0.0,
       };
     } catch (e) {
-      AppLogger.e('Error fetching vendor stats: $e');
-      return {};
+      AppLogger.e('Error fetching wallet balance: $e');
+      return null;
     }
   }
 }

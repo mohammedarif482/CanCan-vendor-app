@@ -12,7 +12,7 @@ import 'widgets/revenue_trend_chart.dart';
 import 'widgets/top_products_chart.dart';
 import 'widgets/customer_insights_card.dart';
 import 'widgets/date_range_selector.dart';
-import '../history/history_screen.dart';
+import '../orders/orders_screen.dart';
 import '../payments/payments_screen.dart';
 import '../inventory/inventory_screen.dart';
 
@@ -34,25 +34,23 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    // Build screens directly in the body based on index
-    Widget currentScreen;
-    switch (_selectedIndex) {
-      case 0:
-        currentScreen = const HomeTabScreenEnhanced();
-        break;
-      case 1:
-        currentScreen = const HistoryScreen();
-        break;
-      case 2:
-        currentScreen = const PaymentsScreen();
-        break;
-      case 3:
-        currentScreen = const InventoryScreen();
-        break;
-      default:
-        currentScreen = const HomeTabScreenEnhanced();
-    }
+Widget build(BuildContext context) {
+  // Build screens directly in the body based on index
+  // Simplified to 3 items: Orders, Inventory, Payments
+  Widget currentScreen;
+  switch (_selectedIndex) {
+    case 0:
+      currentScreen = const OrdersScreen();
+      break;
+    case 1:
+      currentScreen = const InventoryScreen();
+      break;
+    case 2:
+      currentScreen = const PaymentsScreen();
+      break;
+    default:
+      currentScreen = const OrdersScreen();
+  }
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -63,24 +61,19 @@ class _HomeScreenEnhancedState extends State<HomeScreenEnhanced> {
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Home',
+            icon: Icon(Icons.receipt_long_outlined),
+            activeIcon: Icon(Icons.receipt_long),
+            label: 'Orders',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.history_outlined),
-            activeIcon: Icon(Icons.history),
-            label: 'History',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.payment_outlined),
-            activeIcon: Icon(Icons.payment),
-            label: 'Payments',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.inventory_outlined),
-            activeIcon: Icon(Icons.inventory),
+            icon: Icon(Icons.inventory_2_outlined),
+            activeIcon: Icon(Icons.inventory_2),
             label: 'Inventory',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.account_balance_wallet_outlined),
+            activeIcon: Icon(Icons.account_balance_wallet),
+            label: 'Payments',
           ),
         ],
       ),

@@ -33,7 +33,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final results = await Future.wait([
+      final results = await Future.wait<dynamic>([
         _orderService.getOrdersByDate(date: _selectedDate, status: 'completed'),
         _orderService.getOrdersByDate(date: _selectedDate, status: 'cancelled'),
       ]);

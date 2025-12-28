@@ -1,261 +1,252 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 import '../utils/logger.dart';
 
-/// Inventory Service - Handles inventory management operations
+/// Inventory Service - Handles product inventory operations with Supabase
 class InventoryService {
   final _supabase = SupabaseConfig.client;
 
-  /// Get all products for the current vendor
+  /// Get vendor's products with inventory
   Future<List<Map<String, dynamic>>> getVendorProducts() async {
     try {
       final vendorId = SupabaseConfig.currentVendorId;
       if (vendorId == null) {
-        throw Exception('Vendor not authenticated');
+        return [];
       }
+
+      AppLogger.d('Fetching vendor products for: $vendorId');
 
       final response = await _supabase
           .from('vendor_products')
           .select('''
-            *,
-            products!inner(id, name, category)
+            id,
+            vendor_id,
+            product_id,
+            products!inner(
+              id,
+              name,
+              category,
+              base_price,
+              image_url
+            ),
+            selling_price,
+            deposit_amount,
+            mrp,
+            current_stock,
+            low_stock_threshold,
+            reorder_quantity,
+            is_active,
+            is_available
           ''')
           .eq('vendor_id', vendorId)
+          .eq('is_active', true)
           .order('created_at', ascending: false);
 
-      return List<Map<String, dynamic>>.from(response as List);
-    } catch (e, stackTrace) {
-      AppLogger.e('Error fetching vendor products: $e', e, stackTrace);
+      AppLogger.i('Fetched ${response.length} products');
+
+      return response as List<Map<String, dynamic>>;
+    } catch (e) {
+      AppLogger.e('Error fetching products: $e');
       return [];
     }
   }
 
-  /// Update stock level
-  Future<Map<String, dynamic>> updateStockLevel({
+  /// Get low stock items
+  Future<List<Map<String, dynamic>>> getLowStockItems() async {
+    try {
+      final vendorId = SupabaseConfig.currentVendorId;
+      if (vendorId == null) {
+        return [];
+      }
+
+      AppLogger.d('Fetching low stock items for vendor: $vendorId');
+
+      final response = await _supabase
+          .from('vendor_products')
+          .select('''
+            id,
+            product_id,
+            products!inner(
+              id,
+              name
+            ),
+            current_stock,
+            low_stock_threshold
+          ''')
+          .eq('vendor_id', vendorId)
+          .eq('is_active', true)
+          .lt('current_stock', 'low_stock_threshold')
+          .order('current_stock', ascending: true);
+
+      AppLogger.i('Fetched ${response.length} low stock items');
+
+      return response as List<Map<String, dynamic>>;
+    } catch (e) {
+      AppLogger.e('Error fetching low stock items: $e');
+      return [];
+    }
+  }
+
+  /// Update product stock
+  Future<Map<String, dynamic>> updateStock({
     required String vendorProductId,
-    required int newStockLevel,
-    String? reason,
+    required int quantityChange,
+    String? notes,
   }) async {
     try {
-      final updates = <String, dynamic>{
-        'current_stock': newStockLevel,
-        'updated_at': DateTime.now().toIso8601String(),
-      };
-
-      if (reason != null) {
-        updates['last_stock_update_reason'] = reason;
+      final vendorId = SupabaseConfig.currentVendorId;
+      if (vendorId == null) {
+        return {
+          'success': false,
+          'message': 'No vendor ID found',
+        };
       }
 
-      // Check if stock is below threshold
-      final product = await _supabase
+      AppLogger.d('Updating stock for product: $vendorProductId, change: $quantityChange');
+
+      // Get current product
+      final productResponse = await _supabase
           .from('vendor_products')
-          .select('low_stock_threshold')
+          .select('current_stock')
           .eq('id', vendorProductId)
-          .single();
+          .eq('vendor_id', vendorId)
+          .maybeSingle();
 
-      final threshold = product['low_stock_threshold'] as int? ?? 10;
-      if (newStockLevel <= threshold) {
-        updates['is_low_stock'] = true;
-        updates['low_stock_alert_sent_at'] = DateTime.now().toIso8601String();
-      } else {
-        updates['is_low_stock'] = false;
+      if (productResponse == null) {
+        return {
+          'success': false,
+          'message': 'Product not found',
+        };
       }
 
-      await _supabase
+      final currentStock = productResponse['current_stock'] as int;
+      final newStock = currentStock + quantityChange;
+
+      if (newStock < 0) {
+        return {
+          'success': false,
+          'message': 'Insufficient stock',
+        };
+      }
+
+      final error = await _supabase
           .from('vendor_products')
-          .update(updates)
-          .eq('id', vendorProductId);
+          .update({
+            'current_stock': newStock,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', vendorProductId)
+          .eq('vendor_id', vendorId);
 
-      // Create stock movement record
-      await _recordStockMovement(
-        vendorProductId: vendorProductId,
-        quantity: newStockLevel,
-        type: 'manual_update',
-        reason: reason ?? 'Manual stock update',
-      );
+      if (error != null) {
+        AppLogger.e('Error updating stock: $error');
+        return {
+          'success': false,
+          'message': 'Failed to update stock',
+          'error': error.toString(),
+        };
+      }
 
+      // Log inventory transaction
+      await _supabase.from('inventory_transactions').insert({
+        'vendor_id': vendorId,
+        'product_id': (await _supabase
+                .from('vendor_products')
+                .select('product_id')
+                .eq('id', vendorProductId)
+                .maybeSingle())?['product_id'],
+        'transaction_type': quantityChange > 0 ? 'stock_in' : 'stock_out',
+        'quantity': quantityChange.abs(),
+        'remaining_stock': newStock,
+        'notes': notes,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      AppLogger.i('Stock updated successfully');
       return {
         'success': true,
         'message': 'Stock updated successfully',
+        'newStock': newStock,
       };
     } catch (e) {
-      AppLogger.e('Error updating stock level: $e');
+      AppLogger.e('Error updating stock: $e');
       return {
         'success': false,
-        'message': 'Failed to update stock level',
+        'message': 'Something went wrong. Please try again.',
+        'error': e.toString(),
       };
     }
   }
 
-  /// Add new vendor product
-  Future<Map<String, dynamic>> addVendorProduct({
+  /// Add new product to vendor's catalog
+  Future<Map<String, dynamic>> addProduct({
     required String productId,
     required double sellingPrice,
-    required double depositAmount,
     required int initialStock,
-    required int lowStockThreshold,
+    int? lowStockThreshold,
+    int? reorderQuantity,
+    double? depositAmount,
   }) async {
     try {
       final vendorId = SupabaseConfig.currentVendorId;
       if (vendorId == null) {
-        throw Exception('Vendor not authenticated');
+        return {
+          'success': false,
+          'message': 'No vendor ID found',
+        };
       }
 
-      final newProduct = {
+      AppLogger.d('Adding product to vendor catalog: $vendorId, product: $productId');
+
+      final productData = {
         'vendor_id': vendorId,
         'product_id': productId,
         'selling_price': sellingPrice,
-        'deposit_amount': depositAmount,
+        'deposit_amount': depositAmount ?? 0.0,
         'current_stock': initialStock,
-        'low_stock_threshold': lowStockThreshold,
-        'is_low_stock': initialStock <= lowStockThreshold,
+        'low_stock_threshold': lowStockThreshold ?? 10,
+        'reorder_quantity': reorderQuantity ?? 50,
+        'is_active': true,
+        'is_available': true,
         'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
       };
 
-      final response = await _supabase
+      final error = await _supabase
           .from('vendor_products')
-          .insert(newProduct)
-          .select('id')
-          .single();
+          .insert(productData);
 
-      // Create initial stock movement record
-      await _recordStockMovement(
-        vendorProductId: response['id'],
-        quantity: initialStock,
-        type: 'initial_stock',
-        reason: 'Initial inventory setup',
-      );
+      if (error != null) {
+        AppLogger.e('Error adding product: $error');
+        return {
+          'success': false,
+          'message': 'Failed to add product',
+          'error': error.toString(),
+        };
+      }
 
+      // Log inventory transaction
+      await _supabase.from('inventory_transactions').insert({
+        'vendor_id': vendorId,
+        'product_id': productId,
+        'transaction_type': 'stock_in',
+        'quantity': initialStock,
+        'remaining_stock': initialStock,
+        'notes': 'Initial stock',
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      AppLogger.i('Product added successfully');
       return {
         'success': true,
         'message': 'Product added successfully',
-        'product': newProduct,
       };
     } catch (e) {
-      AppLogger.e('Error adding vendor product: $e');
+      AppLogger.e('Error adding product: $e');
       return {
         'success': false,
-        'message': 'Failed to add product',
+        'message': 'Something went wrong. Please try again.',
+        'error': e.toString(),
       };
-    }
-  }
-
-  /// Get products with low stock
-  Future<List<Map<String, dynamic>>> getLowStockProducts() async {
-    try {
-      final vendorId = SupabaseConfig.currentVendorId;
-      if (vendorId == null) {
-        throw Exception('Vendor not authenticated');
-      }
-
-      final response = await _supabase
-          .from('vendor_products')
-          .select('''
-            *,
-            products!inner(id, name, category)
-          ''')
-          .eq('vendor_id', vendorId)
-          .eq('is_low_stock', true)
-          .order('current_stock', ascending: true);
-
-      return List<Map<String, dynamic>>.from(response as List);
-    } catch (e, stackTrace) {
-      AppLogger.e('Error fetching low stock products: $e', e, stackTrace);
-      return [];
-    }
-  }
-
-  /// Get inventory statistics
-  Future<Map<String, dynamic>> getInventoryStatistics() async {
-    try {
-      final vendorId = SupabaseConfig.currentVendorId;
-      if (vendorId == null) {
-        throw Exception('Vendor not authenticated');
-      }
-
-      final products = await _supabase
-          .from('vendor_products')
-          .select('current_stock, low_stock_threshold, is_low_stock')
-          .eq('vendor_id', vendorId);
-
-      int totalProducts = products.length;
-      int lowStockProducts = 0;
-      int totalStock = 0;
-      double totalValue = 0.0;
-
-      for (final product in products) {
-        totalStock += product['current_stock'] as int;
-        if (product['is_low_stock'] as bool) {
-          lowStockProducts++;
-        }
-      }
-
-      // Get product values
-      final productsWithValue = await _supabase
-          .from('vendor_products')
-          .select('current_stock, selling_price')
-          .eq('vendor_id', vendorId);
-
-      for (final product in productsWithValue) {
-        final stock = product['current_stock'] as int;
-        final price = (product['selling_price'] as num).toDouble();
-        totalValue += stock * price;
-      }
-
-      return {
-        'totalProducts': totalProducts,
-        'lowStockProducts': lowStockProducts,
-        'totalStock': totalStock,
-        'totalValue': totalValue,
-        'lowStockPercentage': totalProducts > 0
-            ? (lowStockProducts / totalProducts) * 100
-            : 0.0,
-      };
-    } catch (e) {
-      AppLogger.e('Error fetching inventory statistics: $e');
-      return {
-        'totalProducts': 0,
-        'lowStockProducts': 0,
-        'totalStock': 0,
-        'totalValue': 0.0,
-        'lowStockPercentage': 0.0,
-      };
-    }
-  }
-
-  /// Get stock movements for a product
-  Future<List<Map<String, dynamic>>> getStockMovements(String vendorProductId) async {
-    try {
-      final response = await _supabase
-          .from('stock_movements')
-          .select('*')
-          .eq('vendor_product_id', vendorProductId)
-          .order('created_at', ascending: false);
-
-      return List<Map<String, dynamic>>.from(response as List);
-    } catch (e, stackTrace) {
-      AppLogger.e('Error fetching stock movements: $e', e, stackTrace);
-      return [];
-    }
-  }
-
-  /// Record stock movement
-  Future<void> _recordStockMovement({
-    required String vendorProductId,
-    required int quantity,
-    required String type,
-    required String reason,
-  }) async {
-    try {
-      await _supabase.from('stock_movements').insert({
-        'vendor_product_id': vendorProductId,
-        'quantity': quantity,
-        'type': type,
-        'reason': reason,
-        'created_at': DateTime.now().toIso8601String(),
-      });
-    } catch (e) {
-      AppLogger.e('Error recording stock movement: $e');
     }
   }
 
@@ -265,33 +256,46 @@ class InventoryService {
     double? sellingPrice,
     double? depositAmount,
     int? lowStockThreshold,
+    int? reorderQuantity,
+    bool? isAvailable,
   }) async {
     try {
-      final updates = <String, dynamic>{
+      final vendorId = SupabaseConfig.currentVendorId;
+      if (vendorId == null) {
+        return {
+          'success': false,
+          'message': 'No vendor ID found',
+        };
+      }
+
+      AppLogger.d('Updating product: $vendorProductId');
+
+      final updateData = <String, dynamic>{
         'updated_at': DateTime.now().toIso8601String(),
       };
 
-      if (sellingPrice != null) updates['selling_price'] = sellingPrice;
-      if (depositAmount != null) updates['deposit_amount'] = depositAmount;
-      if (lowStockThreshold != null) {
-        updates['low_stock_threshold'] = lowStockThreshold;
+      if (sellingPrice != null) updateData['selling_price'] = sellingPrice;
+      if (depositAmount != null) updateData['deposit_amount'] = depositAmount;
+      if (lowStockThreshold != null) updateData['low_stock_threshold'] = lowStockThreshold;
+      if (reorderQuantity != null) updateData['reorder_quantity'] = reorderQuantity;
+      if (isAvailable != null) updateData['is_available'] = isAvailable;
 
-        // Check if current stock is below new threshold
-        final product = await _supabase
-            .from('vendor_products')
-            .select('current_stock')
-            .eq('id', vendorProductId)
-            .single();
+      final error = await _supabase
+          .from('vendor_products')
+          .update(updateData)
+          .eq('id', vendorProductId)
+          .eq('vendor_id', vendorId);
 
-        final currentStock = product['current_stock'] as int;
-        updates['is_low_stock'] = currentStock <= lowStockThreshold;
+      if (error != null) {
+        AppLogger.e('Error updating product: $error');
+        return {
+          'success': false,
+          'message': 'Failed to update product',
+          'error': error.toString(),
+        };
       }
 
-      await _supabase
-          .from('vendor_products')
-          .update(updates)
-          .eq('id', vendorProductId);
-
+      AppLogger.i('Product updated successfully');
       return {
         'success': true,
         'message': 'Product updated successfully',
@@ -300,63 +304,65 @@ class InventoryService {
       AppLogger.e('Error updating product: $e');
       return {
         'success': false,
-        'message': 'Failed to update product',
+        'message': 'Something went wrong. Please try again.',
+        'error': e.toString(),
       };
     }
   }
 
-  /// Delete vendor product
-  Future<Map<String, dynamic>> deleteVendorProduct(String vendorProductId) async {
-    try {
-      await _supabase
-          .from('vendor_products')
-          .delete()
-          .eq('id', vendorProductId);
-
-      return {
-        'success': true,
-        'message': 'Product deleted successfully',
-      };
-    } catch (e) {
-      AppLogger.e('Error deleting vendor product: $e');
-      return {
-        'success': false,
-        'message': 'Failed to delete product',
-      };
-    }
-  }
-
-  /// Get available products to add (from master products table)
-  Future<List<Map<String, dynamic>>> getAvailableProducts() async {
+  /// Get inventory statistics
+  Future<Map<String, dynamic>> getInventoryStats() async {
     try {
       final vendorId = SupabaseConfig.currentVendorId;
       if (vendorId == null) {
-        throw Exception('Vendor not authenticated');
+        return {
+          'totalProducts': 0,
+          'lowStockCount': 0,
+          'totalStock': 0,
+          'outOfStockCount': 0,
+        };
       }
 
-      // Get products not already added by vendor
+      AppLogger.d('Fetching inventory stats for vendor: $vendorId');
+
       final response = await _supabase
-          .from('products')
-          .select('*')
-          .order('name');
-
-      // Filter out products already added by this vendor
-      final vendorProducts = await _supabase
           .from('vendor_products')
-          .select('product_id')
-          .eq('vendor_id', vendorId);
+          .select('current_stock, low_stock_threshold')
+          .eq('vendor_id', vendorId)
+          .eq('is_active', true);
 
-      final existingProductIds =
-          (vendorProducts as List).map((p) => p['product_id'] as String).toSet();
+      final products = response as List;
 
-      final availableProducts = (response as List)
-          .where((p) => !existingProductIds.contains(p['id']))
-          .toList();
+      final totalProducts = products.length;
+      final lowStockCount = products
+          .where((p) => (p['current_stock'] as int) <= (p['low_stock_threshold'] as int))
+          .length;
+      final totalStock = products.fold<int>(
+          0, (sum, p) => sum + (p['current_stock'] as int));
+      final outOfStockCount = products
+          .where((p) => (p['current_stock'] as int) == 0)
+          .length;
 
-      return List<Map<String, dynamic>>.from(availableProducts);
-    } catch (e, stackTrace) {
-      AppLogger.e('Error fetching available products: $e', e, stackTrace);
-      return [];
+      return {
+        'totalProducts': totalProducts,
+        'lowStockCount': lowStockCount,
+        'totalStock': totalStock,
+        'outOfStockCount': outOfStockCount,
+      };
+    } catch (e) {
+      AppLogger.e('Error fetching inventory stats: $e');
+      return {
+        'totalProducts': 0,
+        'lowStockCount': 0,
+        'totalStock': 0,
+        'outOfStockCount': 0,
+      };
     }
   }
+
+  /// Alias for getLowStockItems - for compatibility
+  Future<List<Map<String, dynamic>>> getLowStockProducts() => getLowStockItems();
+
+  /// Alias for getInventoryStats - for compatibility
+  Future<Map<String, dynamic>> getInventoryStatistics() => getInventoryStats();
 }

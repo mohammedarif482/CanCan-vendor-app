@@ -100,15 +100,13 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
           .map((e) => e.key.toLowerCase())
           .toList();
 
-      final workingHours = {
+      final businessHours = {
         'open': '${_openTime.hour.toString().padLeft(2, '0')}:${_openTime.minute.toString().padLeft(2, '0')}',
         'close': '${_closeTime.hour.toString().padLeft(2, '0')}:${_closeTime.minute.toString().padLeft(2, '0')}',
+        'working_days': workingDays,
       };
 
-      final result = await _vendorService.updateVendorProfile(
-        workingHours: workingHours,
-        workingDays: workingDays,
-      );
+      final result = await _vendorService.updateBusinessHours(businessHours);
 
       if (!mounted) return;
 

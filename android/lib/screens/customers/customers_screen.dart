@@ -42,16 +42,7 @@ class _CustomersScreenState extends State<CustomersScreen>
       final customers = await _customerService.getAllCustomers();
 
       setState(() {
-        _customers = customers.map((c) => {
-          'id': c.id,
-          'vendor_id': c.vendorId,
-          'name': c.name,
-          'phone': c.phone,
-          'address': c.address,
-          'flat_number': c.flatNumber,
-          'floor': c.floor,
-          'building_name': c.buildingName,
-        }).toList();
+        _customers = customers;
         _isLoading = false;
       });
     } catch (e) {
@@ -392,16 +383,7 @@ class _CustomersScreenState extends State<CustomersScreen>
 
     try {
       final customers = await _customerService.searchCustomers(query);
-      setState(() => _customers = customers.map((c) => {
-        'id': c.id,
-        'vendor_id': c.vendorId,
-        'name': c.name,
-        'phone': c.phone,
-        'address': c.address,
-        'flat_number': c.flatNumber,
-        'floor': c.floor,
-        'building_name': c.buildingName,
-      }).toList());
+      setState(() => _customers = customers);
     } catch (e) {
       // Handle error silently
     }

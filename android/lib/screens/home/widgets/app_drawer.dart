@@ -3,11 +3,12 @@ import '../../../config/theme.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/vendor_service.dart';
 import '../../auth/login_screen.dart';
+import '../home_tab_screen_enhanced.dart';
 import '../../qr_code/qr_code_screen.dart';
 import '../../catalog/product_catalog_screen.dart';
 import '../../settings/settings_screen.dart';
 import '../../vacation/vacation_screen.dart';
-import '../../customers/customers_screen.dart';
+import '../../history/history_screen.dart';
 
 /// App Drawer - Side menu with profile and settings
 class AppDrawer extends StatefulWidget {
@@ -134,6 +135,35 @@ class _AppDrawerState extends State<AppDrawer> {
                   child: ListView(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     children: [
+                      // Moved from bottom nav - Main Navigation
+                      _buildMenuItem(
+                        icon: Icons.dashboard_outlined,
+                        title: 'Dashboard',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const HomeTabScreenEnhanced(),
+                            ),
+                          );
+                        },
+                      ),
+                      _buildMenuItem(
+                        icon: Icons.history_outlined,
+                        title: 'Order History',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const HistoryScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const Divider(height: 24),
+                      // Business Section
                       _buildMenuItem(
                         icon: Icons.person_outline,
                         title: 'Business Details',
@@ -182,17 +212,6 @@ class _AppDrawerState extends State<AppDrawer> {
                         },
                       ),
                       _buildMenuItem(
-                        icon: Icons.analytics_outlined,
-                        title: 'Analytics',
-                        onTap: () {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text('Analytics coming soon!')),
-                          );
-                        },
-                      ),
-                      _buildMenuItem(
                         icon: Icons.settings_outlined,
                         title: 'Settings',
                         onTap: () {
@@ -205,7 +224,8 @@ class _AppDrawerState extends State<AppDrawer> {
                           );
                         },
                       ),
-                      const Divider(height: 32),
+                      const Divider(height: 24),
+                      // Help Section
                       _buildMenuItem(
                         icon: Icons.help_outline,
                         title: 'Support & Help',
@@ -222,7 +242,7 @@ class _AppDrawerState extends State<AppDrawer> {
                           _showAbout(context);
                         },
                       ),
-                      const Divider(height: 32),
+                      const Divider(height: 24),
                       _buildMenuItem(
                         icon: Icons.logout,
                         title: 'Logout',

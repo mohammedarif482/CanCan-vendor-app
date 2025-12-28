@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/theme.dart';
 import '../../services/vendor_service.dart';
-import '../home/widgets/app_drawer.dart';
 import 'notifications_settings_screen.dart';
 import 'working_hours_screen.dart';
 import 'privacy_policy_screen.dart';
@@ -124,8 +123,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      drawer: const AppDrawer(),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: const Text('Settings'),
         actions: [
           if (!_isLoading)

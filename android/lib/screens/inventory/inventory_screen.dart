@@ -43,7 +43,7 @@ class _InventoryScreenState extends State<InventoryScreen>
     setState(() => _isLoading = true);
 
     try {
-      final results = await Future.wait([
+      final results = await Future.wait<dynamic>([
         _inventoryService.getVendorProducts(),
         _inventoryService.getLowStockProducts(),
         _inventoryService.getInventoryStatistics(),

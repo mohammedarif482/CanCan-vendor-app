@@ -1,80 +1,60 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/order.dart';
-import '../config/app_config.dart';
+import '../config/supabase_config.dart';
 import '../utils/logger.dart';
 
-/// Customer Service - Handles customer management operations
+/// Customer Service - Handles customer data operations with Supabase
 class CustomerService {
-  static final CustomerService _instance = CustomerService._internal();
-  factory CustomerService() => _instance;
-  CustomerService._internal();
+  final _supabase = SupabaseConfig.client;
 
-  final SupabaseClient _supabase = Supabase.instance.client;
-
-  /// Get all customers for the current vendor
-  Future<List<Customer>> getAllCustomers({
-    int? limit,
-    int? offset,
-    String? searchQuery,
-    String? sortBy = 'name',
-    bool ascending = true,
-  }) async {
+  /// Get all customers for current vendor
+  Future<List<Map<String, dynamic>>> getAllCustomers() async {
     try {
-      final vendorId = _supabase.auth.currentUser?.id;
+      final vendorId = SupabaseConfig.currentVendorId;
       if (vendorId == null) {
-        throw Exception('Vendor not authenticated');
+        AppLogger.w('No vendor ID found');
+        return [];
       }
 
-      AppLogger.d('Fetching customers for vendor: $vendorId');
+      AppLogger.d('Fetching all customers for vendor: $vendorId');
 
-      var query = _supabase
+      final response = await _supabase
           .from('customers')
           .select('''
             id,
+            vendor_id,
             name,
             phone,
             address,
             flat_number,
             floor,
             building_name,
-            created_at
+            landmark,
+            city,
+            state,
+            pincode,
+            total_orders,
+            total_spent,
+            average_order_value,
+            last_order_at
           ''')
-          .eq('vendor_id', vendorId);
+          .eq('vendor_id', vendorId)
+          .order('created_at', ascending: false);
 
-      // Apply search filter
-      if (searchQuery != null && searchQuery.isNotEmpty) {
-        query = query.or('name.ilike.%$searchQuery%,phone.ilike.%$searchQuery%');
-      }
+      AppLogger.i('Fetched ${response.length} customers');
 
-      // Build the final query with sorting and pagination - don't reassign
-      final finalQuery = query.order(sortBy ?? 'name', ascending: ascending);
-      final withLimit = limit != null ? finalQuery.limit(limit) : finalQuery;
-      final withOffset = offset != null
-          ? withLimit.range(offset, offset + (limit ?? 50) - 1)
-          : withLimit;
-
-      final response = await withOffset;
-
-      final customers = response.map((json) {
-        final customerJson = Map<String, dynamic>.from(json);
-        customerJson['vendor_id'] = vendorId; // Add vendor_id for model compatibility
-        return Customer.fromJson(customerJson);
-      }).toList();
-
-      AppLogger.i('Retrieved ${customers.length} customers');
-      return customers;
-    } catch (e, stackTrace) {
-      AppLogger.e('Error fetching customers: $e', e, stackTrace);
+      return response as List<Map<String, dynamic>>;
+    } catch (e) {
+      AppLogger.e('Error fetching customers: $e');
       return [];
     }
   }
 
   /// Get customer by ID
-  Future<Customer?> getCustomerById(String customerId) async {
+  Future<Map<String, dynamic>?> getCustomerById(String customerId) async {
     try {
-      final vendorId = _supabase.auth.currentUser?.id;
+      final vendorId = SupabaseConfig.currentVendorId;
       if (vendorId == null) {
-        throw Exception('Vendor not authenticated');
+        return null;
       }
 
       AppLogger.d('Fetching customer: $customerId');
@@ -86,396 +66,186 @@ class CustomerService {
           .eq('vendor_id', vendorId)
           .maybeSingle();
 
-      if (response != null) {
-        final customerJson = Map<String, dynamic>.from(response);
-        customerJson['vendor_id'] = vendorId;
-        return Customer.fromJson(customerJson);
+      if (response == null) {
+        return null;
       }
 
-      AppLogger.w('Customer not found: $customerId');
-      return null;
-    } catch (e, stackTrace) {
-      AppLogger.e('Error fetching customer: $e', e, stackTrace);
+      return response as Map<String, dynamic>;
+    } catch (e) {
+      AppLogger.e('Error fetching customer: $e');
       return null;
     }
   }
 
-  /// Search customers by phone number or name
-  Future<List<Customer>> searchCustomers(String query, {int limit = 10}) async {
+  /// Search customers by name or phone
+  Future<List<Map<String, dynamic>>> searchCustomers(String query) async {
     try {
-      final vendorId = _supabase.auth.currentUser?.id;
+      final vendorId = SupabaseConfig.currentVendorId;
       if (vendorId == null) {
-        throw Exception('Vendor not authenticated');
+        return [];
       }
 
-      AppLogger.d('Searching customers with query: $query');
+      AppLogger.d('Searching customers for vendor: $vendorId, query: $query');
+
+      final searchTerm = query.toLowerCase().trim();
 
       final response = await _supabase
           .from('customers')
-          .select()
-          .eq('vendor_id', vendorId)
-          .or('name.ilike.%$query%,phone.ilike.%$query%')
-          .limit(limit);
-
-      final customers = response.map((json) {
-        final customerJson = Map<String, dynamic>.from(json);
-        customerJson['vendor_id'] = vendorId;
-        return Customer.fromJson(customerJson);
-      }).toList();
-
-      AppLogger.i('Found ${customers.length} matching customers');
-      return customers;
-    } catch (e, stackTrace) {
-      AppLogger.e('Error searching customers: $e', e, stackTrace);
-      return [];
-    }
-  }
-
-  /// Get customer order history
-  Future<List<Order>> getCustomerOrders(String customerId, {
-    int? limit = 20,
-    String? status,
-  }) async {
-    try {
-      final vendorId = _supabase.auth.currentUser?.id;
-      if (vendorId == null) {
-        throw Exception('Vendor not authenticated');
-      }
-
-      AppLogger.d('Fetching orders for customer: $customerId');
-
-      var query = _supabase
-          .from('orders')
           .select('''
             id,
-            order_number,
             vendor_id,
-            customer_id,
-            delivery_date,
-            time_slot,
-            total_amount,
-            status,
-            is_delivered,
-            delivered_at,
-            payment_status,
-            payment_marked_at,
-            notes,
-            cancellation_reason,
-            created_at,
-            customers!inner(
-              id,
-              name,
-              phone,
-              address,
-              flat_number,
-              floor,
-              building_name
-            )
+            name,
+            phone,
+            address,
+            flat_number,
+            floor,
+            building_name,
+            total_orders,
+            total_spent,
+            average_order_value,
+            last_order_at
           ''')
           .eq('vendor_id', vendorId)
-          .eq('customer_id', customerId);
+          .or('name.ilike.%$searchTerm%,phone.ilike.%$searchTerm%')
+          .order('total_orders', ascending: false)
+          .limit(20);
 
-      if (status != null) {
-        query = query.eq('status', status);
-      }
+      AppLogger.i('Found ${response.length} customers matching search');
 
-      // Build the final query - don't reassign after order/limit
-      final orderedQuery = query.order('created_at', ascending: false);
-      final withLimit = limit != null ? orderedQuery.limit(limit) : orderedQuery;
-
-      final response = await withLimit;
-
-      final orders = response.map((json) {
-        return Order.fromJson(json);
-      }).toList();
-
-      AppLogger.i('Retrieved ${orders.length} orders for customer');
-      return orders;
-    } catch (e, stackTrace) {
-      AppLogger.e('Error fetching customer orders: $e', e, stackTrace);
+      return response as List<Map<String, dynamic>>;
+    } catch (e) {
+      AppLogger.e('Error searching customers: $e');
       return [];
     }
   }
 
-  /// Get customer statistics
-  Future<Map<String, dynamic>> getCustomerStats(String customerId) async {
+  /// Get customer insights/analytics
+  Future<Map<String, dynamic>> getCustomerInsights() async {
     try {
-      final vendorId = _supabase.auth.currentUser?.id;
+      final vendorId = SupabaseConfig.currentVendorId;
       if (vendorId == null) {
-        throw Exception('Vendor not authenticated');
+        return {
+          'totalCustomers': 0,
+          'totalRevenue': 0.0,
+          'avgCustomerValue': 0.0,
+          'topCustomers': [],
+        };
       }
 
-      AppLogger.d('Fetching statistics for customer: $customerId');
+      AppLogger.d('Fetching customer insights for vendor: $vendorId');
 
-      final results = await Future.wait([
-        // Total orders
-        _supabase
-            .from('orders')
-            .select('id')
-            .eq('vendor_id', vendorId)
-            .eq('customer_id', customerId),
-        // Completed orders
-        _supabase
-            .from('orders')
-            .select('id, total_amount')
-            .eq('vendor_id', vendorId)
-            .eq('customer_id', customerId)
-            .eq('status', 'completed'),
-        // Last order
-        _supabase
-            .from('orders')
-            .select('created_at')
-            .eq('vendor_id', vendorId)
-            .eq('customer_id', customerId)
-            .order('created_at', ascending: false)
-            .limit(1),
-        // This month orders
-        _supabase
-            .from('orders')
-            .select('id')
-            .eq('vendor_id', vendorId)
-            .eq('customer_id', customerId)
-            .gte('created_at', DateTime.now().subtract(const Duration(days: 30)).toIso8601String()),
-      ]);
+      // Get total customers
+      final customersResponse = await _supabase
+          .from('customers')
+          .select('total_orders, total_spent')
+          .eq('vendor_id', vendorId);
 
-      final totalOrders = results[0].length as int;
-      final completedOrders = results[1] as List;
-      final lastOrder = results[2] as List;
-      final thisMonthOrders = results[3].length as int;
+      final customers = customersResponse as List;
 
-      double totalSpent = 0.0;
-      for (final order in completedOrders) {
-        totalSpent += (order['total_amount'] as num).toDouble();
-      }
+      // Calculate metrics
+      final totalCustomers = customers.length;
+      final totalRevenue = customers.fold<double>(
+          0.0, (sum, c) => sum + (c['total_spent'] as num? ?? 0.0).toDouble());
+      final avgCustomerValue = totalCustomers > 0 ? totalRevenue / totalCustomers : 0.0;
 
-      final averageOrderValue = completedOrders.isNotEmpty
-          ? totalSpent / completedOrders.length
-          : 0.0;
+      // Get top 5 customers by orders
+      final topCustomersResponse = await _supabase
+          .from('customers')
+          .select('id, name, phone, total_orders, total_spent, last_order_at')
+          .eq('vendor_id', vendorId)
+          .order('total_orders', ascending: false)
+          .limit(5);
 
-      DateTime? lastOrderDate;
-      if (lastOrder.isNotEmpty) {
-        lastOrderDate = DateTime.parse(lastOrder[0]['created_at'] as String);
-      }
+      final topCustomers = (topCustomersResponse as List).map((c) => {
+            'customerId': c['id'],
+            'orderCount': c['total_orders'] ?? 0,
+            'totalSpent': c['total_spent'] ?? 0.0,
+          }).toList();
 
-      final stats = {
-        'totalOrders': totalOrders,
-        'completedOrders': completedOrders.length,
-        'totalSpent': totalSpent,
-        'averageOrderValue': averageOrderValue,
-        'lastOrderDate': lastOrderDate,
-        'thisMonthOrders': thisMonthOrders,
-        'customerType': _getCustomerType(totalOrders, totalSpent),
-      };
-
-      AppLogger.d('Customer stats retrieved: $stats');
-      return stats;
-    } catch (e, stackTrace) {
-      AppLogger.e('Error fetching customer stats: $e', e, stackTrace);
       return {
-        'totalOrders': 0,
-        'completedOrders': 0,
-        'totalSpent': 0.0,
-        'averageOrderValue': 0.0,
-        'lastOrderDate': null,
-        'thisMonthOrders': 0,
-        'customerType': 'New',
+        'totalCustomers': totalCustomers,
+        'totalRevenue': totalRevenue,
+        'avgCustomerValue': avgCustomerValue,
+        'topCustomers': topCustomers,
+      };
+    } catch (e) {
+      AppLogger.e('Error fetching customer insights: $e');
+      return {
+        'totalCustomers': 0,
+        'totalRevenue': 0.0,
+        'avgCustomerValue': 0.0,
+        'topCustomers': [],
       };
     }
   }
 
-  /// Add new customer
-  Future<Map<String, dynamic>> addCustomer({
+  /// Create or update customer
+  Future<Map<String, dynamic>> upsertCustomer({
+    required String customerId,
     required String name,
     required String phone,
     required String address,
     String? flatNumber,
     String? floor,
     String? buildingName,
+    String? landmark,
+    String? city,
+    String? state,
+    String? pincode,
   }) async {
     try {
-      final vendorId = _supabase.auth.currentUser?.id;
+      final vendorId = SupabaseConfig.currentVendorId;
       if (vendorId == null) {
-        throw Exception('Vendor not authenticated');
-      }
-
-      // Check if customer already exists for this vendor
-      final existingCustomer = await _supabase
-          .from('customers')
-          .select('id')
-          .eq('vendor_id', vendorId)
-          .eq('phone', phone)
-          .maybeSingle();
-
-      if (existingCustomer != null) {
         return {
           'success': false,
-          'message': 'Customer with this phone number already exists',
-          'customerId': existingCustomer['id'],
+          'message': 'No vendor ID found',
         };
       }
 
-      AppLogger.i('Adding new customer: $name ($phone)');
+      AppLogger.d('Upserting customer: $customerId');
 
-      final customerData = {
+      final customerData = <String, dynamic>{
+        'id': customerId,
         'vendor_id': vendorId,
-        'name': name.trim(),
-        'phone': phone.trim(),
-        'address': address.trim(),
-        'flat_number': flatNumber?.trim(),
-        'floor': floor?.trim(),
-        'building_name': buildingName?.trim(),
-        'created_at': DateTime.now().toIso8601String(),
+        'name': name,
+        'phone': phone,
+        'address': address,
         'updated_at': DateTime.now().toIso8601String(),
       };
 
-      final response = await _supabase
+      if (flatNumber != null) customerData['flat_number'] = flatNumber;
+      if (floor != null) customerData['floor'] = floor;
+      if (buildingName != null) customerData['building_name'] = buildingName;
+      if (landmark != null) customerData['landmark'] = landmark;
+      if (city != null) customerData['city'] = city;
+      if (state != null) customerData['state'] = state;
+      if (pincode != null) customerData['pincode'] = pincode;
+
+      final error = await _supabase
           .from('customers')
-          .insert(customerData)
-          .select('id')
-          .single();
+          .upsert(customerData);
 
-      AppLogger.i('Customer added successfully: ${response['id']}');
+      if (error != null) {
+        AppLogger.e('Error upserting customer: $error');
+        return {
+          'success': false,
+          'message': 'Failed to save customer',
+          'error': error.toString(),
+        };
+      }
 
+      AppLogger.i('Customer saved successfully');
       return {
         'success': true,
-        'message': 'Customer added successfully',
-        'customerId': response['id'],
+        'message': 'Customer saved successfully',
       };
-    } catch (e, stackTrace) {
-      AppLogger.e('Error adding customer: $e', e, stackTrace);
+    } catch (e) {
+      AppLogger.e('Error upserting customer: $e');
       return {
         'success': false,
-        'message': 'Failed to add customer: ${e.toString()}',
+        'message': 'Something went wrong. Please try again.',
+        'error': e.toString(),
       };
     }
-  }
-
-  /// Update customer details
-  Future<Map<String, dynamic>> updateCustomer({
-    required String customerId,
-    String? name,
-    String? phone,
-    String? address,
-    String? flatNumber,
-    String? floor,
-    String? buildingName,
-  }) async {
-    try {
-      final vendorId = _supabase.auth.currentUser?.id;
-      if (vendorId == null) {
-        throw Exception('Vendor not authenticated');
-      }
-
-      AppLogger.i('Updating customer: $customerId');
-
-      final updateData = <String, dynamic>{
-        'updated_at': DateTime.now().toIso8601String(),
-      };
-
-      // Only include non-null fields
-      if (name != null) updateData['name'] = name.trim();
-      if (phone != null) updateData['phone'] = phone.trim();
-      if (address != null) updateData['address'] = address.trim();
-      if (flatNumber != null) updateData['flat_number'] = flatNumber.trim();
-      if (floor != null) updateData['floor'] = floor.trim();
-      if (buildingName != null) updateData['building_name'] = buildingName.trim();
-
-      await _supabase
-          .from('customers')
-          .update(updateData)
-          .eq('id', customerId)
-          .eq('vendor_id', vendorId);
-
-      AppLogger.i('Customer updated successfully');
-      return {
-        'success': true,
-        'message': 'Customer updated successfully',
-      };
-    } catch (e, stackTrace) {
-      AppLogger.e('Error updating customer: $e', e, stackTrace);
-      return {
-        'success': false,
-        'message': 'Failed to update customer: ${e.toString()}',
-      };
-    }
-  }
-
-  /// Get top customers by order value or frequency
-  Future<List<Map<String, dynamic>>> getTopCustomers({
-    int limit = 10,
-    String sortBy = 'totalSpent', // 'totalSpent' or 'orderFrequency'
-  }) async {
-    try {
-      final vendorId = _supabase.auth.currentUser?.id;
-      if (vendorId == null) {
-        throw Exception('Vendor not authenticated');
-      }
-
-      AppLogger.d('Fetching top customers by $sortBy');
-
-      final response = await _supabase
-          .from('orders')
-          .select('''
-            customer_id,
-            total_amount,
-            customers!inner(
-              id,
-              name,
-              phone,
-              address
-            )
-          ''')
-          .eq('vendor_id', vendorId)
-          .eq('status', 'completed');
-
-      // Group by customer
-      final Map<String, Map<String, dynamic>> customerData = {};
-
-      for (final order in response) {
-        final customerId = order['customer_id'] as String;
-        final amount = (order['total_amount'] as num).toDouble();
-
-        if (!customerData.containsKey(customerId)) {
-          final customer = order['customers'] as Map<String, dynamic>;
-          customerData[customerId] = {
-            'id': customerId,
-            'name': customer['name'],
-            'phone': customer['phone'],
-            'address': customer['address'],
-            'totalOrders': 0,
-            'totalSpent': 0.0,
-          };
-        }
-
-        final customer = customerData[customerId]!;
-        customer['totalOrders'] = (customer['totalOrders'] as int) + 1;
-        customer['totalSpent'] = (customer['totalSpent'] as double) + amount;
-      }
-
-      // Sort by requested criteria
-      final sortedCustomers = customerData.values.toList()
-        ..sort((a, b) {
-          if (sortBy == 'totalSpent') {
-            return (b['totalSpent'] as double).compareTo(a['totalSpent'] as double);
-          } else {
-            return (b['totalOrders'] as int).compareTo(a['totalOrders'] as int);
-          }
-        });
-
-      final result = sortedCustomers.take(limit).toList();
-      AppLogger.i('Retrieved ${result.length} top customers');
-      return result;
-    } catch (e, stackTrace) {
-      AppLogger.e('Error fetching top customers: $e', e, stackTrace);
-      return [];
-    }
-  }
-
-  /// Get customer type based on order history
-  String _getCustomerType(int totalOrders, double totalSpent) {
-    if (totalOrders == 0) return 'New';
-    if (totalOrders >= 20 || totalSpent >= 5000) return 'VIP';
-    if (totalOrders >= 10 || totalSpent >= 2000) return 'Regular';
-    return 'Occasional';
   }
 }
