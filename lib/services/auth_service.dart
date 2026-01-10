@@ -8,7 +8,7 @@ class AuthService {
   final _supabase = SupabaseConfig.client;
 
   // TEST MODE FLAG - Set to false when ready for production
-  static const bool _testMode = true;
+  static const bool _testMode = false;
   static const String _testOTP = '123456'; // Test OTP for development
 
   /// Send OTP to phone number

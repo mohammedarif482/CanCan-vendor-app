@@ -49,6 +49,73 @@ SUPABASE_URL=your_supabase_project_url
 SUPABASE_ANON_KEY=your_supabase_anonymous_key
 ```
 
+The `.env` file must be added to `pubspec.yaml` under assets (already configured) and **should not be committed** to version control.
+
+### Supabase Database Setup Required
+For production mode (supabase/integration branch), ensure your Supabase project has these tables:
+
+1. **vendors** table:
+   - id (UUID, primary key)
+   - phone (text, unique)
+   - name (text)
+   - business_name (text)
+   - address (text)
+   - is_active (boolean)
+   - is_on_vacation (boolean)
+   - max_daily_deliveries (integer)
+   - max_daily_cans (integer)
+   - working_hours (jsonb)
+   - working_days (array of text)
+   - created_at, updated_at (timestamps)
+
+2. **orders** table:
+   - id (UUID, primary key)
+   - order_number (text, unique)
+   - vendor_id (UUID, foreign key to vendors)
+   - customer_id (UUID, foreign key to customers)
+   - delivery_date (date)
+   - time_slot (text)
+   - total_amount (numeric)
+   - status (text: pending/completed/cancelled)
+   - is_delivered (boolean)
+   - delivered_at (timestamp)
+   - payment_status (text: paid/unpaid)
+   - payment_marked_at (timestamp)
+   - notes (text)
+   - cancellation_reason (text)
+   - created_at (timestamp)
+
+3. **customers** table:
+   - id (UUID, primary key)
+   - name (text)
+   - phone (text)
+   - address (text)
+   - flat_number (text)
+   - floor (text)
+   - building_name (text)
+
+4. **order_items** table:
+   - id (UUID, primary key)
+   - order_id (UUID, foreign key to orders)
+   - product_id (UUID, foreign key to products)
+   - quantity (integer)
+   - unit_price (numeric)
+   - subtotal (numeric)
+
+5. **products** table:
+   - id (UUID, primary key)
+   - name (text)
+   - price (numeric)
+   - is_active (boolean)
+
+6. **inventory** table:
+   - id (UUID, primary key)
+   - vendor_id (UUID, foreign key to vendors)
+   - product_id (UUID, foreign key to products)
+   - current_stock (integer)
+   - low_stock_threshold (integer)
+   - updated_at (timestamp)
+
 ## Architecture Overview
 
 ### Directory Structure
@@ -108,12 +175,37 @@ Two important flags control test vs production behavior:
 1. **AuthService._testMode** (lib/services/auth_service.dart:11)
    - `true`: Bypasses real OTP, accepts "123456", uses mock session
    - `false`: Real Supabase phone OTP authentication
+   - **Current status**: `false` (production mode enabled)
 
 2. **OrderService._useDummyData** (lib/services/order_service.dart:12)
    - `true`: Returns hardcoded Tamil dummy data for UI development
    - `false`: Fetches real data from Supabase orders table
+   - **Current status**: `false` (real Supabase data enabled)
 
-Remember to set both to `false` before production deployment.
+### Branch Configuration
+- **rapid-prototyping branch**: Test mode enabled, dummy data for development
+- **supabase/integration branch**: Production mode enabled, real Supabase cloud sync
+- **main branch**: Production ready (merge from supabase/integration)
+
+To switch between development and production modes, use the appropriate branch.
+
+### Session Management Pattern
+The app uses a hybrid authentication approach:
+
+1. **Production Mode** (Supabase Auth):
+   - Uses Supabase's `auth.currentUser` for authentication
+   - Vendor ID comes from Supabase user ID
+
+2. **Test Mode** (Mock Session):
+   - Uses `SessionService` (SharedPreferences) to persist lightweight session data
+   - Stores: `vendorId`, `vendorPhone`, `hasProfile`
+   - Allows skipping login on app restart
+
+3. **Vendor ID Resolution** (SupabaseConfig.currentVendorId):
+   - Priority 1: Authenticated Supabase user ID
+   - Priority 2: Locally stored vendor session (SessionService.vendorId)
+
+This hybrid approach allows UI development without real Supabase auth while maintaining compatibility with production auth flow.
 
 ### Theme System
 - Uses custom Agrandir font (assets/fonts/) - NOT Google Fonts
@@ -129,6 +221,20 @@ Key tables referenced in code:
 - `customers`: Customer addresses and contact info
 - `order_items`: Order line items with quantities
 - `products`: Product catalog (water cans)
+
+### App Initialization Flow (main.dart)
+1. `WidgetsFlutterBinding.ensureInitialized()` - Initialize Flutter bindings
+2. `SystemChrome.setPreferredOrientations()` - Lock to portrait mode
+3. `SupabaseConfig.initialize()` - Load .env and initialize Supabase client
+4. `SessionService.init()` - Initialize SharedPreferences for local session
+5. `CanCanApp` checks authentication state and routes to LoginScreen or HomeScreen
+
+### Order Management & Inventory Integration
+When an order is marked as delivered via `OrderService.updateOrderStatus()`:
+- Order status changes to "completed"
+- `InventoryService.deductStockForOrder()` is automatically called
+- Stock is deducted based on order items (product quantities)
+- This integration prevents overselling and maintains accurate inventory
 
 ## Development Notes
 
@@ -155,6 +261,21 @@ Key tables referenced in code:
 
 ### Print Debugging
 The codebase uses extensive `print()` statements for debugging (prefixed with emoji indicators like ✅, ❌, 📦, 🧪). These are intentional for development and should remain for debugging complex flows.
+
+### Code Conventions & Patterns
+
+1. **Named Parameters**: All service methods use named parameters with `required` for clarity
+2. **Return Types**: Services return `Map<String, dynamic>` with `success` boolean and `message` string for API responses
+3. **Async/Await**: All I/O operations (database, network) use proper async/await patterns
+4. **State Management**: UI components use local `StatefulWidget` with service instances (no Provider patterns yet)
+5. **Model Conventions**:
+   - All models have `fromJson()` factory constructors for Supabase response parsing
+   - Database column names use snake_case, mapped to camelCase Dart fields
+   - Models include `toJson()` for serialization (though rarely used)
+6. **Screen Organization**:
+   - Screens in `lib/screens/` are organized by feature (auth/, home/, inventory/, etc.)
+   - Feature-specific widgets are co-located in `widgets/` subdirectories (e.g., `lib/screens/home/widgets/`)
+   - Reusable cross-screen widgets are in `lib/widgets/`
 
 ### Push Notifications
 - Firebase Messaging for FCM tokens

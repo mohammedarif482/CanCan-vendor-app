@@ -9,7 +9,7 @@ class OrderService {
   // Toggle this to `true` if you want to see dummy data in the app
   // (Home screen pending/completed + History screen).
   // Set to `false` to use real data from Supabase.
-  static const bool _useDummyData = true;
+  static const bool _useDummyData = false;
 
   /// Generate dummy orders for a given date & status.
   /// This is used only when `_useDummyData` is true.
