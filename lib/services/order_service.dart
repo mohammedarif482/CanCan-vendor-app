@@ -9,7 +9,7 @@ class OrderService {
   // Toggle this to `true` if you want to see dummy data in the app
   // (Home screen pending/completed + History screen).
   // Set to `false` to use real data from Supabase.
-  static const bool _useDummyData = true;
+  static const bool _useDummyData = false;
 
   /// Generate dummy orders for a given date & status.
   /// This is used only when `_useDummyData` is true.
@@ -18,6 +18,7 @@ class OrderService {
     required String status,
   }) {
     final baseDate = DateTime(date.year, date.month, date.day);
+    final now = DateTime.now();
 
     // Shared dummy customer & products
     final customer1 = Customer(
@@ -28,6 +29,8 @@ class OrderService {
       flatNumber: 'A-201',
       floor: '2',
       buildingName: 'Lake View',
+      createdAt: now,
+      updatedAt: now,
     );
 
     final customer2 = Customer(
@@ -38,6 +41,8 @@ class OrderService {
       flatNumber: 'B-502',
       floor: '5',
       buildingName: 'Green Gardens',
+      createdAt: now,
+      updatedAt: now,
     );
 
     final customer3 = Customer(
@@ -48,6 +53,8 @@ class OrderService {
       flatNumber: 'C-305',
       floor: '3',
       buildingName: 'Sunrise Apartments',
+      createdAt: now,
+      updatedAt: now,
     );
 
     final customer4 = Customer(
@@ -58,6 +65,8 @@ class OrderService {
       flatNumber: 'D-102',
       floor: '1',
       buildingName: 'Royal Heights',
+      createdAt: now,
+      updatedAt: now,
     );
 
     final product20L = Product(id: 'prod_20l', name: '20L Water Can');
@@ -72,6 +81,8 @@ class OrderService {
         deliveryDate: baseDate,
         timeSlot: '8:00 AM - 10:00 AM',
         totalAmount: 140,
+        amountPaid: 0,
+        remainingAmount: 140,
         status: 'pending',
         isDelivered: false,
         deliveredAt: null,
@@ -80,6 +91,7 @@ class OrderService {
         notes: 'Leave at the door',
         cancellationReason: null,
         createdAt: baseDate.subtract(const Duration(hours: 2)),
+        updatedAt: now,
         customer: customer1,
         items: [
           OrderItem(
@@ -101,6 +113,8 @@ class OrderService {
         deliveryDate: baseDate,
         timeSlot: '10:00 AM - 12:00 PM',
         totalAmount: 210,
+        amountPaid: 0,
+        remainingAmount: 210,
         status: 'pending',
         isDelivered: false,
         deliveredAt: null,
@@ -109,6 +123,7 @@ class OrderService {
         notes: 'Call when outside the gate',
         cancellationReason: null,
         createdAt: baseDate.subtract(const Duration(hours: 1)),
+        updatedAt: now,
         customer: customer2,
         items: [
           OrderItem(
@@ -133,6 +148,8 @@ class OrderService {
         deliveryDate: baseDate,
         timeSlot: '6:00 AM - 8:00 AM',
         totalAmount: 200,
+        amountPaid: 200,
+        remainingAmount: 0,
         status: 'completed',
         isDelivered: true,
         deliveredAt: baseDate.add(const Duration(hours: 7, minutes: 30)),
@@ -141,6 +158,7 @@ class OrderService {
         notes: 'Cash collected',
         cancellationReason: null,
         createdAt: baseDate.subtract(const Duration(days: 1)),
+        updatedAt: now,
         customer: customer1,
         items: [
           OrderItem(
@@ -171,6 +189,8 @@ class OrderService {
         deliveryDate: baseDate,
         timeSlot: '8:00 AM - 10:00 AM',
         totalAmount: 140,
+        amountPaid: 140,
+        remainingAmount: 0,
         status: 'completed',
         isDelivered: true,
         deliveredAt: baseDate.add(const Duration(hours: 9, minutes: 15)),
@@ -179,6 +199,7 @@ class OrderService {
         notes: 'UPI payment',
         cancellationReason: null,
         createdAt: baseDate.subtract(const Duration(days: 1)),
+        updatedAt: now,
         customer: customer3,
         items: [
           OrderItem(
@@ -203,6 +224,8 @@ class OrderService {
         deliveryDate: baseDate,
         timeSlot: '4:00 PM - 6:00 PM',
         totalAmount: 140,
+        amountPaid: 0,
+        remainingAmount: 140,
         status: 'cancelled',
         isDelivered: false,
         deliveredAt: null,
@@ -211,6 +234,7 @@ class OrderService {
         notes: 'Customer not at home',
         cancellationReason: 'Customer cancelled via phone',
         createdAt: baseDate.subtract(const Duration(days: 2)),
+        updatedAt: now,
         customer: customer4,
         items: [
           OrderItem(
@@ -248,8 +272,11 @@ class OrderService {
     }
 
     try {
-      final vendorId = SupabaseConfig.currentVendorId ??
-          '5d4b8601-2bef-4ce3-8631-b62730d403ea';
+      final vendorId = SupabaseConfig.currentVendorId;
+      if (vendorId == null) {
+        print('⚠️ User not authenticated - cannot fetch orders');
+        return [];
+      }
       final dateStr =
           '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
@@ -348,9 +375,11 @@ class OrderService {
         return {'totalCans': totalCans, 'totalEarnings': totalEarnings};
       }
 
-      // In test mode, use hardcoded vendor ID
-      final vendorId = SupabaseConfig.currentVendorId ??
-          '5d4b8601-2bef-4ce3-8631-b62730d403ea';
+      final vendorId = SupabaseConfig.currentVendorId;
+      if (vendorId == null) {
+        print('⚠️ User not authenticated - cannot fetch daily summary');
+        return {'totalCans': 0, 'totalEarnings': 0.0};
+      }
 
       final today = DateTime.now();
       final dateStr =
@@ -388,6 +417,7 @@ class OrderService {
   }
 
   /// Update order status
+  /// Note: For recording payments, use PaymentService.recordPayment() instead
   Future<Map<String, dynamic>> updateOrderStatus({
     required String orderId,
     required bool isDelivered,
@@ -400,7 +430,7 @@ class OrderService {
         updates['status'] = 'completed';
         updates['is_delivered'] = true;
         updates['delivered_at'] = DateTime.now().toIso8601String();
-        
+
         // Deduct stock from inventory when order is delivered
         final inventoryService = InventoryService();
         final stockResult = await inventoryService.deductStockForOrder(orderId: orderId);
@@ -410,13 +440,26 @@ class OrderService {
       }
 
       if (isPaid) {
-        updates['payment_status'] = 'paid';
-        updates['payment_marked_at'] = DateTime.now().toIso8601String();
+        // Get order total amount
+        final order = await _supabase
+            .from('orders')
+            .select('total_amount')
+            .eq('id', orderId)
+            .single();
+
+        if (order != null) {
+          final totalAmount = (order['total_amount'] as num).toDouble();
+          // Set amount_paid to total_amount for full payment
+          updates['amount_paid'] = totalAmount;
+          updates['payment_marked_at'] = DateTime.now().toIso8601String();
+          // payment_status will be auto-updated by database trigger
+        }
       }
 
-      await _supabase.from('orders').update(updates).eq('id', orderId);
-
-      print('✅ Order $orderId updated successfully');
+      if (updates.isNotEmpty) {
+        await _supabase.from('orders').update(updates).eq('id', orderId);
+        print('✅ Order $orderId updated successfully');
+      }
 
       return {
         'success': true,
