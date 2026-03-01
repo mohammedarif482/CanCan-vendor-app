@@ -65,6 +65,11 @@ class AppConfig {
   static String? get googleMapsApiKey => dotenv.env['GOOGLE_MAPS_API_KEY'];
   static String? get whatsappApiKey => dotenv.env['WHATSAPP_API_KEY'];
   static String? get whatsappPhoneNumberId => dotenv.env['WHATSAPP_PHONE_NUMBER_ID'];
+  // Central business WhatsApp number (with country code, no +).
+  // e.g. "919876543210" — ALL QR codes point here, not the vendor's personal number.
+  static String get whatsappBusinessNumber =>
+      dotenv.env['WHATSAPP_BUSINESS_NUMBER'] ?? '';
+
 
   // Validation
   static bool get isValidConfig {
