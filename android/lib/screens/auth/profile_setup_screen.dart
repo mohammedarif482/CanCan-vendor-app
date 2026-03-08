@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../../services/vendor_service.dart';
+import '../../services/session_service.dart';
 import '../home/home_tab_screen_enhanced.dart';
 import '../../utils/logger.dart';
 
@@ -59,6 +60,17 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       AppLogger.d('📊 Test Mode: ${result['testMode']}');
 
       if (result['success']) {
+        // Save session with the new vendor ID
+        final newVendorId = result['vendorId'] as String?;
+        if (newVendorId != null) {
+          await SessionService.saveSession(
+            vendorId: newVendorId,
+            vendorPhone: '+91${widget.phoneNumber}',
+            hasProfile: true,
+          );
+          AppLogger.i('Session saved for new vendor: $newVendorId');
+        }
+
         // Check if in test mode
         final isInTestMode = result['testMode'] == true;
 

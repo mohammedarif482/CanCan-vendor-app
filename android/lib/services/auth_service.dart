@@ -107,11 +107,13 @@ class AuthService {
               .maybeSingle();
 
           if (vendorData2 == null) {
-            AppLogger.w('TEST MODE: No vendor found for phone $phoneNumber');
+            // NEW VENDOR — no profile yet, route to ProfileSetupScreen
+            AppLogger.i(
+                'TEST MODE: No vendor found for $phoneNumber — new signup');
             return {
-              'success': false,
-              'message': 'No vendor registered with this phone number. '
-                  'Please add a vendor row in your Supabase "vendors" table first.',
+              'success': true,
+              'message': 'New vendor — profile setup needed',
+              'hasProfile': false,
             };
           }
 
