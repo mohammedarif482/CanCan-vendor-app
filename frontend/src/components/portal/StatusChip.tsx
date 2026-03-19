@@ -27,7 +27,7 @@ export default function StatusChip({ label, variant = 'neutral', className = '' 
 }
 
 /** Maps common status strings to StatusChip variant */
-export function statusToVariant(status: string): StatusVariant {
+export function statusToVariant(status: string | undefined | null): StatusVariant {
     const s = status?.toLowerCase() ?? '';
     if (['active', 'paid', 'completed', 'delivered', 'success', 'sent'].includes(s)) return 'success';
     if (['pending', 'processing', 'inactive', 'unpaid'].includes(s)) return 'warning';

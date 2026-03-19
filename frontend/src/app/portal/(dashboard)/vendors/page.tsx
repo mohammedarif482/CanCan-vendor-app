@@ -19,6 +19,32 @@ import PortalPageHeader from '@/components/portal/PortalPageHeader';
 import StatusChip, { statusToVariant } from '@/components/portal/StatusChip';
 import { Button, Card, Input, Modal, Pagination, Select } from '@/components/portal/ui';
 
+/** Row from API may use `status` (simple schema) or `verification_status` / `is_active` (unified schema) */
+function rawVendorStatus(vendor: Vendor): string {
+    if (vendor.status != null && String(vendor.status).trim() !== '') {
+        return String(vendor.status);
+    }
+    if (vendor.verification_status != null && String(vendor.verification_status).trim() !== '') {
+        return String(vendor.verification_status);
+    }
+    if (typeof vendor.is_active === 'boolean') {
+        return vendor.is_active ? 'active' : 'inactive';
+    }
+    return 'unknown';
+}
+
+function formatStatusLabel(status: string): string {
+    return status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+}
+
+/** Map API row to portal form status dropdown */
+function statusForForm(vendor: Vendor): 'active' | 'inactive' | 'suspended' {
+    const s = rawVendorStatus(vendor).toLowerCase();
+    if (['suspended', 'rejected', 'blocked'].includes(s)) return 'suspended';
+    if (['active', 'verified', 'completed'].includes(s) || s === 'unknown') return 'active';
+    return 'inactive';
+}
+
 const Vendors: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { vendors, pagination, isLoading, error } = useSelector((state: RootState) => state.vendors);
@@ -66,11 +92,11 @@ const Vendors: React.FC = () => {
   const handleEditVendor = (vendor: Vendor) => {
     setFormData({
       phone: vendor.phone,
-      name: vendor.name,
+      name: vendor.name || vendor.owner_name || '',
       business_name: vendor.business_name || '',
       address: vendor.address || '',
-      commission_rate: vendor.commission_rate || 10,
-      status: vendor.status,
+      commission_rate: vendor.commission_rate ?? 10,
+      status: statusForForm(vendor),
     });
     setEditDialogOpen(true);
   };
@@ -90,9 +116,15 @@ const Vendors: React.FC = () => {
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(amount);
 
-  const activeCount = vendors.filter((v) => v.status === 'active').length;
-  const inactiveCount = vendors.filter((v) => v.status === 'inactive').length;
-  const suspendedCount = vendors.filter((v) => v.status === 'suspended').length;
+  const activeCount = vendors.filter((v) => rawVendorStatus(v).toLowerCase() === 'active').length;
+  const inactiveCount = vendors.filter((v) => {
+    const s = rawVendorStatus(v).toLowerCase();
+    return s === 'inactive' || s === 'pending' || s === 'unverified';
+  }).length;
+  const suspendedCount = vendors.filter((v) => {
+    const s = rawVendorStatus(v).toLowerCase();
+    return s === 'suspended' || s === 'rejected' || s === 'blocked';
+  }).length;
 
   if (error) {
     return (
@@ -260,17 +292,17 @@ const Vendors: React.FC = () => {
                 vendors.map((vendor) => (
                   <tr key={vendor.id} className="hover:bg-slate-50/60">
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-900">{vendor.name}</p>
+                      <p className="font-semibold text-slate-900">{vendor.name || vendor.owner_name || '—'}</p>
                       <p className="text-slate-500">{vendor.phone}</p>
                     </td>
-                    <td className="px-4 py-3 font-medium text-slate-700">{vendor.business_name || '-'}</td>
+                    <td className="px-4 py-3 font-medium text-slate-700">{vendor.business_name || '—'}</td>
                     <td className="px-4 py-3">
                       <StatusChip
-                        label={vendor.status.replace(/\b\w/g, (l) => l.toUpperCase())}
-                        variant={statusToVariant(vendor.status)}
+                        label={formatStatusLabel(rawVendorStatus(vendor))}
+                        variant={statusToVariant(rawVendorStatus(vendor))}
                       />
                     </td>
-                    <td className="px-4 py-3 font-semibold text-slate-900">{vendor.commission_rate}%</td>
+                    <td className="px-4 py-3 font-semibold text-slate-900">{vendor.commission_rate ?? '—'}%</td>
                     <td className="px-4 py-3 text-slate-700">{vendor.stats?.totalOrders || 0}</td>
                     <td className="px-4 py-3 font-semibold text-slate-900">
                       {formatCurrency(vendor.stats?.totalRevenue || 0)}
@@ -420,18 +452,18 @@ const Vendors: React.FC = () => {
           <div className="space-y-4">
             <Card className="p-4 bg-slate-50 border-slate-200">
               <div className="space-y-2 text-sm text-slate-800">
-                <div><span className="font-semibold">Name:</span> {selectedVendor.name}</div>
+                <div><span className="font-semibold">Name:</span> {selectedVendor.name || selectedVendor.owner_name || '—'}</div>
                 <div><span className="font-semibold">Phone:</span> {selectedVendor.phone}</div>
-                <div><span className="font-semibold">Business:</span> {selectedVendor.business_name || '-'}</div>
-                <div><span className="font-semibold">Address:</span> {selectedVendor.address || '-'}</div>
+                <div><span className="font-semibold">Business:</span> {selectedVendor.business_name || '—'}</div>
+                <div><span className="font-semibold">Address:</span> {selectedVendor.address || '—'}</div>
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">Status:</span>
                   <StatusChip
-                    label={selectedVendor.status.replace(/\b\w/g, (l) => l.toUpperCase())}
-                    variant={statusToVariant(selectedVendor.status)}
+                    label={formatStatusLabel(rawVendorStatus(selectedVendor))}
+                    variant={statusToVariant(rawVendorStatus(selectedVendor))}
                   />
                 </div>
-                <div><span className="font-semibold">Commission Rate:</span> {selectedVendor.commission_rate}%</div>
+                <div><span className="font-semibold">Commission Rate:</span> {selectedVendor.commission_rate ?? '—'}%</div>
                 <div><span className="font-semibold">Joined:</span> {formatDate(selectedVendor.created_at)}</div>
                 <div><span className="font-semibold">Total Orders:</span> {selectedVendor.stats?.totalOrders ?? 0}</div>
                 <div><span className="font-semibold">Total Revenue:</span> {formatCurrency(selectedVendor.stats?.totalRevenue ?? 0)}</div>
