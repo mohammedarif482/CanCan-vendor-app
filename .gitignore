@@ -28,6 +28,12 @@ android/local.properties
 android/**/build/
 android/**/captures/
 android/**/.cxx/
+android/**/ephemeral/
+android/android/gradlew
+android/android/gradlew.bat
+android/ios/Flutter/Generated.xcconfig
+android/ios/Flutter/flutter_export_environment.sh
+android/ios/Runner/GeneratedPluginRegistrant.*
 
 # Keystore (NEVER commit)
 android/key.properties
