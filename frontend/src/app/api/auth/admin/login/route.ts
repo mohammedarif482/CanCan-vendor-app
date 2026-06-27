@@ -1,8 +1,7 @@
 import { NextRequest } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase';
-import { signToken, comparePassword } from '@/lib/auth';
-
-const DEV_MODE = process.env.DEV_MODE === 'true';
+import { signToken, comparePassword, DEV_MODE, timingSafeStringEqual } from '@/lib/auth';
+import { isRateLimited } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
     try {
@@ -13,8 +12,15 @@ export async function POST(req: NextRequest) {
             return Response.json({ error: 'Email and password required' }, { status: 400 });
         }
 
-        // Development mode — bypass database for demo
-        if (DEV_MODE && email === 'admin@cancan.com' && password === 'admin123') {
+        const ip = req.headers.get('x-forwarded-for') || 'unknown';
+        if (isRateLimited(`login:${ip}:${email.toLowerCase()}`, 10, 15 * 60 * 1000)) {
+            return Response.json({ error: 'Too many login attempts. Try again later.' }, { status: 429 });
+        }
+
+        // Development mode — bypass database for demo. DEV_MODE itself is
+        // forced false in production regardless of env (see lib/auth.ts),
+        // so this branch is dead code on any real deployment.
+        if (DEV_MODE && email === 'admin@cancan.com' && timingSafeStringEqual(password, 'admin123')) {
             const token = signToken({ email: 'admin@cancan.com', role: 'super_admin', type: 'admin' });
             return Response.json({
                 token,
@@ -35,7 +41,7 @@ export async function POST(req: NextRequest) {
             envAdminEmail &&
             envAdminPassword &&
             email.toLowerCase() === envAdminEmail.toLowerCase() &&
-            password === envAdminPassword
+            timingSafeStringEqual(password, envAdminPassword)
         ) {
             const token = signToken({ email: envAdminEmail, role: 'super_admin', type: 'admin' });
             return Response.json({

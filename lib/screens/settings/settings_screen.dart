@@ -3,16 +3,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../providers/locale_provider.dart';
+import '../../services/auth_service.dart';
 import '../../services/vendor_data_service.dart';
 import '../../utils/localization_extension.dart';
 import '../../widgets/screen_with_nav.dart';
+import '../../widgets/business_details_sheet.dart';
+import '../auth/login_screen.dart';
 import '../home/widgets/app_drawer.dart';
 import 'notifications_settings_screen.dart';
 import 'working_hours_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
 
-/// Settings Screen - Manage vendor profile and preferences
+/// Settings Screen - Preferences. Profile editing lives in the shared
+/// Business Details sheet (also reachable from the drawer) — this screen
+/// just links to it rather than duplicating the edit form.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -21,15 +26,8 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final _formKey = GlobalKey<FormState>();
-
   bool _isLoading = true;
-  bool _isSaving = false;
-  String _selectedLanguage = 'ta'; // Default to Tamil
-
-  final _nameController = TextEditingController();
-  final _businessNameController = TextEditingController();
-  final _addressController = TextEditingController();
+  String _selectedLanguage = 'en'; // Default to English
 
   Map<String, dynamic>? _vendorData;
 
@@ -42,18 +40,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
-    final languageCode = prefs.getString('app_language') ?? 'ta';
+    final languageCode = prefs.getString('app_language') ?? 'en';
     setState(() {
       _selectedLanguage = languageCode;
     });
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _businessNameController.dispose();
-    _addressController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadVendorData() async {
@@ -62,71 +52,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       // Use cached data - no API call if cache is valid
       final data = await VendorDataService.getVendorProfile();
-
-      if (data != null) {
-        setState(() {
-          _vendorData = data;
-          _nameController.text = data['name'] ?? '';
-          _businessNameController.text = data['business_name'] ?? '';
-          _addressController.text = data['address'] ?? '';
-          _isLoading = false;
-        });
-      } else {
-        setState(() => _isLoading = false);
-      }
+      setState(() {
+        _vendorData = data;
+        _isLoading = false;
+      });
     } catch (e) {
       print('❌ Error loading vendor data: $e');
       setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _saveProfile() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isSaving = true);
-
-    try {
-      final result = await VendorDataService.updateProfile(
-        name: _nameController.text.trim(),
-        businessName: _businessNameController.text.trim(),
-        address: _addressController.text.trim(),
-      );
-
-      if (!mounted) return;
-
-      if (result['success']) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(context.tr('success')),
-              backgroundColor: AppTheme.successGreen,
-            ),
-          );
-          Navigator.pop(context);
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message'] ?? context.tr('error')),
-              backgroundColor: AppTheme.errorRed,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(context.tr('try_again_later')),
-            backgroundColor: AppTheme.errorRed,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
     }
   }
 
@@ -136,214 +68,144 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: context.tr('settings'),
       drawer: const AppDrawer(),
       currentNavIndex: 0,
-      actions: [
-        if (!_isLoading)
-          TextButton(
-            onPressed: _isSaving ? null : _saveProfile,
-            child: Text(
-              context.tr('save'),
-              style: TextStyle(
-                color: _isSaving
-                    ? AppTheme.white.withValues(alpha: 0.5)
-                    : AppTheme.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-      ],
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Profile Section
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(24),
-                    decoration: const BoxDecoration(
-                      gradient: AppTheme.primaryGradient,
+                  // Profile Section — tap opens the shared Business Details sheet.
+                  InkWell(
+                    onTap: () => showBusinessDetailsSheet(
+                      context: context,
+                      vendorData: _vendorData,
+                      onUpdated: _loadVendorData,
                     ),
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: AppTheme.white.withValues(alpha: 0.2),
-                            shape: BoxShape.circle,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(24),
+                      decoration: const BoxDecoration(
+                        gradient: AppTheme.primaryGradient,
+                      ),
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: AppTheme.white.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.water_drop_rounded,
+                              size: 40,
+                              color: AppTheme.white,
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.water_drop_rounded,
-                            size: 40,
-                            color: AppTheme.white,
+                          const SizedBox(height: 12),
+                          Text(
+                            _vendorData?['name'] ?? context.tr('business_name'),
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  color: AppTheme.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _vendorData?['name'] ?? context.tr('business_name'),
-                          style:
-                              Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    color: AppTheme.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _vendorData?['phone'] ?? '',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(
-                                color: AppTheme.white.withValues(alpha: 0.9),
-                              ),
-                        ),
-                      ],
+                          const SizedBox(height: 4),
+                          Text(
+                            _vendorData?['phone'] ?? '',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: AppTheme.white.withValues(alpha: 0.9),
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            context.tr('edit'),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppTheme.white.withValues(alpha: 0.75),
+                                  decoration: TextDecoration.underline,
+                                ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
 
                   const SizedBox(height: 16),
 
-                  // Form Section
                   Padding(
                     padding: const EdgeInsets.all(24),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            context.tr('business_name'),
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Your Name
-                          TextFormField(
-                            controller: _nameController,
-                            decoration: InputDecoration(
-                              labelText: context.tr('name'),
-                              prefixIcon: const Icon(Icons.person_rounded),
-                            ),
-                            textCapitalization: TextCapitalization.words,
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return context.tr('name');
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Business Name
-                          TextFormField(
-                            controller: _businessNameController,
-                            decoration: InputDecoration(
-                              labelText: context.tr('business_name'),
-                              prefixIcon: const Icon(Icons.business_rounded),
-                            ),
-                            textCapitalization: TextCapitalization.words,
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return context.tr('business_name');
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Address
-                          TextFormField(
-                            controller: _addressController,
-                            decoration: InputDecoration(
-                              labelText: context.tr('address'),
-                              prefixIcon: const Icon(Icons.location_on_rounded),
-                            ),
-                            maxLines: 3,
-                            textCapitalization: TextCapitalization.words,
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return context.tr('address');
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 32),
-
-                          // Other Settings
-                          Text(
-                            context.tr('settings'),
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          _buildSettingTile(
-                            icon: Icons.notifications_rounded,
-                            title: context.tr('notifications'),
-                            subtitle: context.tr('notifications'),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const NotificationsSettingsScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          _buildSettingTile(
-                            icon: Icons.schedule_rounded,
-                            title: context.tr('working_hours'),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const WorkingHoursScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          _buildSettingTile(
-                            icon: Icons.language_rounded,
-                            title: context.tr('change_language'),
-                            subtitle: _selectedLanguage,
-                            onTap: _showLanguageDialog,
-                          ),
-                          _buildSettingTile(
-                            icon: Icons.privacy_tip_rounded,
-                            title: 'Privacy Policy',
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const PrivacyPolicyScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          _buildSettingTile(
-                            icon: Icons.description_rounded,
-                            title: 'Terms of Service',
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const TermsOfServiceScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          context.tr('settings'),
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildSettingTile(
+                          icon: Icons.notifications_rounded,
+                          title: context.tr('notifications'),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const NotificationsSettingsScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        _buildSettingTile(
+                          icon: Icons.schedule_rounded,
+                          title: context.tr('working_hours'),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const WorkingHoursScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        _buildSettingTile(
+                          icon: Icons.language_rounded,
+                          title: context.tr('change_language'),
+                          subtitle: _selectedLanguage == 'ta' ? context.tr('tamil') : context.tr('english'),
+                          onTap: _showLanguageDialog,
+                        ),
+                        _buildSettingTile(
+                          icon: Icons.privacy_tip_rounded,
+                          title: 'Privacy Policy',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const PrivacyPolicyScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        _buildSettingTile(
+                          icon: Icons.description_rounded,
+                          title: 'Terms of Service',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const TermsOfServiceScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        const Divider(height: 32),
+                        _buildSettingTile(
+                          icon: Icons.logout_rounded,
+                          title: context.tr('logout'),
+                          color: AppTheme.errorRed,
+                          onTap: () => _handleLogout(context),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -357,36 +219,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String title,
     String? subtitle,
     required VoidCallback onTap,
+    Color? color,
   }) {
     return ListTile(
       leading: Container(
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: AppTheme.lightGray.withValues(alpha: 0.3),
+          color: (color ?? AppTheme.textPrimary).withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, size: 20, color: AppTheme.textPrimary),
+        child: Icon(icon, size: 20, color: color ?? AppTheme.textPrimary),
       ),
       title: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w600,
+          color: color,
         ),
       ),
       subtitle: subtitle != null
           ? Text(
-              subtitle!,
-              style: TextStyle(
+              subtitle,
+              style: const TextStyle(
                 fontSize: 14,
                 color: AppTheme.textSecondary,
               ),
             )
           : null,
-      trailing: const Icon(
+      trailing: Icon(
         Icons.chevron_right_rounded,
-        color: AppTheme.textSecondary,
+        color: color ?? AppTheme.textSecondary,
       ),
       onTap: onTap,
     );
@@ -401,8 +265,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Each language's own name shown in its own script — not
+              // translated through the current locale — so a vendor who
+              // accidentally switched to a language they can't read can
+              // still recognize their own language to switch back.
               RadioListTile<String>(
-                title: Text(context.tr('tamil')),
+                title: const Text('தமிழ்'),
                 value: 'ta',
                 groupValue: _selectedLanguage,
                 onChanged: (value) async {
@@ -416,7 +284,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
               RadioListTile<String>(
-                title: Text(context.tr('english')),
+                title: const Text('English'),
                 value: 'en',
                 groupValue: _selectedLanguage,
                 onChanged: (value) async {
@@ -454,5 +322,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
     }
+  }
+
+  void _handleLogout(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await AuthService().signOut();
+              if (context.mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.errorRed,
+            ),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
   }
 }

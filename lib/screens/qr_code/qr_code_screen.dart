@@ -52,7 +52,7 @@ class _QRCodeScreenState extends State<QRCodeScreen> {
       final name = data['name'] as String;
       final business = data['business_name'] as String;
 
-      // Route customers to CanCan business number with vendor context.
+      // Route customers to Can Can business number with vendor context.
       final whatsappLink = AppConstants.getCustomerOrderLink(vendorId);
 
       setState(() {
@@ -117,12 +117,12 @@ class _QRCodeScreenState extends State<QRCodeScreen> {
               _buildInstructionStep(
                 2,
                 'Customers Scan',
-                          'When customers scan the QR code with their phone camera, it opens CanCan WhatsApp.',
+                          'When customers scan the QR code with their phone camera, it opens Can Can WhatsApp.',
               ),
               _buildInstructionStep(
                 3,
-                          'CanCan Handles Flow',
-                          'CanCan bot handles onboarding and order flow first, then shares your contact when needed.',
+                          'Can Can Handles Flow',
+                          'Can Can bot handles onboarding and order flow first, then shares your contact when needed.',
               ),
               const SizedBox(height: 16),
               Container(

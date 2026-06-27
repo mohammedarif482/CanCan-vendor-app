@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { appendVendorWalletEntry } from '@/lib/finance-ledger';
+import { executeCashfreePayout } from '@/lib/cashfree-payouts';
 
 type VendorBalance = {
   vendorId: string;
@@ -78,8 +79,8 @@ async function calculateVendorBalances(): Promise<VendorBalance[]> {
     .filter((item) => item.balance > 0);
 }
 
-async function executeProviderPayout(vendorId: string) {
-  const provider = process.env.PAYMENT_PROVIDER_DEFAULT || 'razorpay';
+async function executeProviderPayout(vendorId: string, amount: number, batchId: string) {
+  const provider = process.env.PAYOUT_PROVIDER_DEFAULT || 'cashfree';
   const instantEnabled = process.env.ENABLE_REAL_PAYOUTS === 'true';
 
   if (!instantEnabled) {
@@ -90,14 +91,31 @@ async function executeProviderPayout(vendorId: string) {
     };
   }
 
-  throw new Error(
-    `Real payout API is not implemented for provider=${provider}. Disable ENABLE_REAL_PAYOUTS or implement provider integration first.`,
-  );
+  if (provider !== 'cashfree') {
+    throw new Error(`Real payout API is not implemented for provider=${provider}. Only 'cashfree' is supported.`);
+  }
+
+  const { data: vendor, error } = await supabaseAdmin
+    .from('vendors')
+    .select(
+      'id, owner_name, business_name, phone, email, address, bank_account_number, bank_ifsc, bank_account_holder_name, payout_vpa, cf_beneficiary_id',
+    )
+    .eq('id', vendorId)
+    .single();
+  if (error || !vendor) {
+    throw new Error(`Could not load vendor ${vendorId} for payout: ${error?.message}`);
+  }
+
+  // transferId must be unique per attempt — Cashfree treats it as an idempotency key.
+  const transferId = `payout_${batchId}_${vendorId}`.slice(0, 40);
+  const result = await executeCashfreePayout({ vendor, amount, transferId });
+
+  return { provider, providerPayoutId: result.providerPayoutId, status: result.status, raw: result.raw };
 }
 
 export async function runPayoutBatch(params: { createdBy: string; settlementDate?: string }) {
   const settlementDate = params.settlementDate || new Date().toISOString().split('T')[0];
-  const provider = process.env.PAYMENT_PROVIDER_DEFAULT || 'razorpay';
+  const provider = process.env.PAYOUT_PROVIDER_DEFAULT || 'cashfree';
 
   const { data: existingBatch } = await supabaseAdmin
     .from('payout_batches')
@@ -153,25 +171,37 @@ export async function runPayoutBatch(params: { createdBy: string; settlementDate
     });
 
     try {
-      const providerResult = await executeProviderPayout(entry.vendorId);
+      const providerResult = await executeProviderPayout(entry.vendorId, entry.balance, String(batch.id));
+
+      if (providerResult.status === 'failed') {
+        throw new Error(`Provider rejected payout: ${JSON.stringify(providerResult)}`);
+      }
+
+      // payout_items.status only allows scheduled/processing/paid/failed/reversed —
+      // a provider-side 'pending' transfer stays 'processing' until reconciled.
       const paidItem = await updateWithSchemaFallback('payout_items', 'id', String(payoutItem.id), {
         provider_payout_id: providerResult.providerPayoutId,
-        status: providerResult.status,
-        paid_at: new Date().toISOString(),
+        status: providerResult.status === 'paid' ? 'paid' : 'processing',
+        paid_at: providerResult.status === 'paid' ? new Date().toISOString() : null,
         metadata: {
           provider_response: providerResult,
         },
       });
 
-      await appendVendorWalletEntry({
-        vendorId: entry.vendorId,
-        payoutItemId: String(paidItem.id),
-        entryType: 'debit',
-        sourceType: 'payout',
-        amount: entry.balance,
-        status: 'posted',
-        notes: `Automated payout batch ${batch.id}`,
-      });
+      // Only debit the wallet once money has actually moved. A 'pending'
+      // transfer (common with bank rails) gets reconciled later — see
+      // reconciliation job — and should not yet reduce the vendor's balance.
+      if (providerResult.status === 'paid') {
+        await appendVendorWalletEntry({
+          vendorId: entry.vendorId,
+          payoutItemId: String(paidItem.id),
+          entryType: 'debit',
+          sourceType: 'payout',
+          amount: entry.balance,
+          status: 'posted',
+          notes: `Automated payout batch ${batch.id}`,
+        });
+      }
 
       processedAmount += entry.balance;
       items.push(paidItem);

@@ -15,7 +15,6 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
   bool _orderNotifications = true;
   bool _paymentNotifications = true;
   bool _lowStockNotifications = true;
-  bool _marketingNotifications = false;
   bool _isLoading = true;
 
   @override
@@ -30,7 +29,6 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
       _orderNotifications = prefs.getBool('notif_orders') ?? true;
       _paymentNotifications = prefs.getBool('notif_payments') ?? true;
       _lowStockNotifications = prefs.getBool('notif_low_stock') ?? true;
-      _marketingNotifications = prefs.getBool('notif_marketing') ?? false;
       _isLoading = false;
     });
   }
@@ -40,7 +38,9 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
     await prefs.setBool('notif_orders', _orderNotifications);
     await prefs.setBool('notif_payments', _paymentNotifications);
     await prefs.setBool('notif_low_stock', _lowStockNotifications);
-    await prefs.setBool('notif_marketing', _marketingNotifications);
+    // notif_marketing intentionally removed — no marketing-notification
+    // pipeline exists, the toggle controlled nothing.
+    await prefs.remove('notif_marketing');
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -100,13 +100,6 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
                   subtitle: 'Get notified when product stock is low',
                   value: _lowStockNotifications,
                   onChanged: (value) => setState(() => _lowStockNotifications = value),
-                ),
-                _buildNotificationTile(
-                  icon: Icons.campaign_outlined,
-                  title: 'Marketing & Updates',
-                  subtitle: 'Promotional offers and app updates',
-                  value: _marketingNotifications,
-                  onChanged: (value) => setState(() => _marketingNotifications = value),
                 ),
               ],
             ),

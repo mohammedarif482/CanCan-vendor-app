@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin, unauthorized } from '@/lib/auth';
 import { notifyOrderAccepted } from '@/lib/whatsapp-notifications';
+import { notifyVendorOrderAssigned } from '@/lib/push-notifications';
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const admin = await authenticateAdmin(req);
@@ -54,6 +55,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         } catch (notificationError) {
             console.error('[PUT /api/orders/:id/assign] notification failed', notificationError);
         }
+    }
+
+    try {
+        await notifyVendorOrderAssigned(vendor_id, String(orderRef));
+    } catch (notificationError) {
+        console.error('[PUT /api/orders/:id/assign] vendor push failed', notificationError);
     }
 
     return Response.json(order);

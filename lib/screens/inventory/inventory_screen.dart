@@ -35,11 +35,18 @@ class _InventoryScreenState extends State<InventoryScreen> {
         throw Exception('No vendor ID found. Please login again.');
       }
 
-      // Fetch vendor products with product details
-      final response = await _supabase.from('vendor_products').select('''
+      // Fetch vendor products with product details. Filters out soft-deleted
+      // products (is_active=false) — same flag the WhatsApp catalog checks,
+      // so a deleted product disappears from both surfaces at once.
+      final response = await _supabase
+          .from('vendor_products')
+          .select('''
             *,
             products(id, name)
-          ''').eq('vendor_id', vendorId).order('created_at', ascending: false);
+          ''')
+          .eq('vendor_id', vendorId)
+          .eq('is_active', true)
+          .order('created_at', ascending: false);
 
       setState(() {
         _products = List<Map<String, dynamic>>.from(response as List);
@@ -832,18 +839,44 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   void _showEditProductDialog(Map<String, dynamic> product) {
-    final priceController = TextEditingController();
-    final depositController = TextEditingController();
-    final thresholdController = TextEditingController();
+    final productInfo = product['products'] as Map<String, dynamic>;
+    final nameController = TextEditingController(text: productInfo['name'] as String? ?? '');
+    final priceController = TextEditingController(
+      text: ((product['selling_price'] as num?) ?? 0).toString(),
+    );
+    final depositController = TextEditingController(
+      text: ((product['deposit_amount'] as num?) ?? 0).toString(),
+    );
+    final thresholdController = TextEditingController(
+      text: ((product['low_stock_threshold'] as num?) ?? 10).toString(),
+    );
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Edit: ${product['products']['name']}'),
+        title: Text('Edit: ${productInfo['name']}'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              const Text(
+                'Product Name',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  hintText: 'e.g., 20L Water Can',
+                  border: OutlineInputBorder(),
+                ),
+                textCapitalization: TextCapitalization.words,
+              ),
+              const SizedBox(height: 16),
               const Text(
                 'Selling Price',
                 style: TextStyle(
@@ -926,25 +959,54 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ],
           ),
         ),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final price = double.tryParse(priceController.text);
-              final deposit = double.tryParse(depositController.text);
-              final threshold = int.tryParse(thresholdController.text);
-
-              if (price != null && deposit != null && threshold != null) {
-                await _updateProductSettings(
-                    product['id'], price, deposit, threshold);
-                if (!context.mounted) return;
-                Navigator.pop(context);
-              }
+            onPressed: () {
+              Navigator.pop(context);
+              _confirmDeleteProduct(product);
             },
-            child: const Text('Save'),
+            style: TextButton.styleFrom(foregroundColor: AppTheme.errorRed),
+            child: const Text('Delete'),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final name = nameController.text.trim();
+                  final price = double.tryParse(priceController.text);
+                  final deposit = double.tryParse(depositController.text);
+                  final threshold = int.tryParse(thresholdController.text);
+
+                  if (name.isEmpty || price == null || deposit == null || threshold == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter valid values for all fields'),
+                        backgroundColor: AppTheme.errorRed,
+                      ),
+                    );
+                    return;
+                  }
+
+                  await _updateProductSettings(
+                    productId: product['id'] as String,
+                    sharedProductId: productInfo['id'] as String,
+                    name: name,
+                    price: price,
+                    deposit: deposit,
+                    threshold: threshold,
+                  );
+                  if (!context.mounted) return;
+                  Navigator.pop(context);
+                },
+                child: const Text('Save'),
+              ),
+            ],
           ),
         ],
       ),
@@ -978,9 +1040,21 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
-  Future<void> _updateProductSettings(
-      String productId, double price, double deposit, int threshold) async {
+  Future<void> _updateProductSettings({
+    required String productId,
+    required String sharedProductId,
+    required String name,
+    required double price,
+    required double deposit,
+    required int threshold,
+  }) async {
     try {
+      // _createProduct always inserts a fresh `products` row per vendor
+      // (never reuses an existing one — see _createProduct below), so in
+      // practice each vendor_products row owns a dedicated products row.
+      // Renaming it here is safe and won't rename another vendor's product.
+      await _supabase.from('products').update({'name': name}).eq('id', sharedProductId);
+
       await _supabase.from('vendor_products').update({
         'selling_price': price,
         'deposit_amount': deposit,
@@ -1002,6 +1076,69 @@ class _InventoryScreenState extends State<InventoryScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(context.tr('failed_update_product')),
+          backgroundColor: AppTheme.errorRed,
+        ),
+      );
+    }
+  }
+
+  void _confirmDeleteProduct(Map<String, dynamic> product) {
+    final productInfo = product['products'] as Map<String, dynamic>;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Product'),
+        content: Text(
+          'Remove "${productInfo['name']}" from your catalogue? '
+          'It will no longer be offered to customers on WhatsApp. '
+          'Past orders for this product are kept.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteProduct(product['id'] as String);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Soft-delete: flips vendor_products.is_active to false rather than
+  /// hard-deleting the row. order_items.product_id is ON DELETE RESTRICT,
+  /// so a hard delete would fail outright for any product with order
+  /// history — and even without that constraint, erasing the row would
+  /// orphan historical order/payment records. is_active=false is also
+  /// exactly what the WhatsApp catalog query filters on, so this is the
+  /// same flag that already controls whether customers can pick it.
+  Future<void> _deleteProduct(String productId) async {
+    try {
+      await _supabase
+          .from('vendor_products')
+          .update({'is_active': false}).eq('id', productId);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Product removed from catalogue'),
+          backgroundColor: AppTheme.successGreen,
+        ),
+      );
+
+      _loadInventory();
+    } catch (e) {
+      print('❌ Error deleting product: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to delete product'),
           backgroundColor: AppTheme.errorRed,
         ),
       );

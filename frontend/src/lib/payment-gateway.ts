@@ -7,6 +7,9 @@ type CreateOrderParams = {
   amountInPaise: number;
   receipt: string;
   notes?: Record<string, string>;
+  customerId?: string;
+  customerPhone?: string;
+  customerEmail?: string;
 };
 
 function toBase64(input: string) {
@@ -23,10 +26,20 @@ export async function createProviderOrder(params: CreateOrderParams): Promise<{
     const keySecret = process.env.RAZORPAY_KEY_SECRET || '';
 
     if (!keyId || !keySecret) {
+      if (process.env.NODE_ENV === 'production') {
+        // A real production deploy with no payment keys configured must not
+        // silently hand customers a fake checkout URL — fail loudly so this
+        // gets noticed and fixed instead of "working" while collecting no money.
+        throw new Error('RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET missing in production — refusing to create a mock payment order.');
+      }
       return {
         providerOrderId: `mock_rzp_${params.receipt}`,
         checkoutUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/mock-payment?provider=razorpay&receipt=${encodeURIComponent(params.receipt)}`,
       };
+    }
+
+    if (process.env.NODE_ENV === 'production' && keyId.startsWith('rzp_test_')) {
+      throw new Error('RAZORPAY_KEY_ID is a test-mode key (rzp_test_*) — refusing to use it in production.');
     }
 
     const response = await fetch('https://api.razorpay.com/v1/orders', {
@@ -61,10 +74,17 @@ export async function createProviderOrder(params: CreateOrderParams): Promise<{
   const baseUrl = process.env.CASHFREE_BASE_URL || 'https://api.cashfree.com/pg';
 
   if (!appId || !secretKey) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('CASHFREE_APP_ID/CASHFREE_SECRET_KEY missing in production — refusing to create a mock payment order.');
+    }
     return {
       providerOrderId: `mock_cf_${params.receipt}`,
       checkoutUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/mock-payment?provider=cashfree&receipt=${encodeURIComponent(params.receipt)}`,
     };
+  }
+
+  if (process.env.NODE_ENV === 'production' && baseUrl.includes('sandbox')) {
+    throw new Error('CASHFREE_BASE_URL points at sandbox — refusing to use it in production.');
   }
 
   const response = await fetch(`${baseUrl}/orders`, {
@@ -80,7 +100,14 @@ export async function createProviderOrder(params: CreateOrderParams): Promise<{
       order_id: params.receipt,
       order_amount: Number((params.amountInPaise / 100).toFixed(2)),
       order_currency: 'INR',
-      order_note: 'CanCan marketplace payment',
+      order_note: 'Can Can marketplace payment',
+      // Cashfree's Orders API rejects the request without this — customer_id
+      // and customer_phone are mandatory, not optional.
+      customer_details: {
+        customer_id: params.customerId || params.receipt,
+        customer_phone: params.customerPhone || '9999999999',
+        ...(params.customerEmail ? { customer_email: params.customerEmail } : {}),
+      },
     }),
   });
 
@@ -97,6 +124,16 @@ export async function createProviderOrder(params: CreateOrderParams): Promise<{
   };
 }
 
+function timingSafeCompare(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) {
+    crypto.timingSafeEqual(aBuf, aBuf);
+    return false;
+  }
+  return crypto.timingSafeEqual(aBuf, bBuf);
+}
+
 export function verifyWebhookSignature(
   provider: SupportedProvider,
   rawBody: string,
@@ -110,7 +147,7 @@ export function verifyWebhookSignature(
     if (!signature) return false;
 
     const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-    return signature === expected;
+    return timingSafeCompare(signature, expected);
   }
 
   const secret = process.env.CASHFREE_WEBHOOK_SECRET;
@@ -123,7 +160,7 @@ export function verifyWebhookSignature(
   if (!signature) return false;
 
   const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('base64');
-  return signature === expected;
+  return timingSafeCompare(signature, expected);
 }
 
 export function detectProviderFromHeaders(headers: Headers): SupportedProvider {

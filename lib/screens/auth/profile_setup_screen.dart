@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../../services/vendor_service.dart';
 import '../../services/vendor_data_service.dart';
+import '../../services/push_notification_service.dart';
 import '../home/home_screen.dart';
+import '../settings/working_hours_screen.dart';
 
 /// Profile Setup Screen - First-time vendor registration
 class ProfileSetupScreen extends StatefulWidget {
@@ -81,6 +83,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         await VendorDataService.initialize(forceRefresh: true); // Force refresh from database
         print('✅ Vendor data cache refreshed');
 
+        await PushNotificationService.initialize();
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -90,9 +94,19 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             ),
           );
 
-          // Navigate to Home Screen
+          // First-time setup continues with working hours before landing on Home.
           Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
+            MaterialPageRoute(
+              builder: (context) => WorkingHoursScreen(
+                isOnboarding: true,
+                onComplete: () {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const HomeScreen()),
+                    (route) => false,
+                  );
+                },
+              ),
+            ),
             (route) => false,
           );
         }

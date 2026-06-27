@@ -4,7 +4,7 @@ import 'dart:async';
 
 /// Locale Provider - Manages app language state
 class LocaleProvider extends ChangeNotifier {
-  static const Locale defaultLocale = Locale('ta'); // Tamil as default
+  static const Locale defaultLocale = Locale('en'); // English as default
 
   Locale _currentLocale = defaultLocale;
 
@@ -16,7 +16,7 @@ class LocaleProvider extends ChangeNotifier {
 
   Future<void> _loadLocale() async {
     final prefs = await SharedPreferences.getInstance();
-    final languageCode = prefs.getString('app_language') ?? 'ta';
+    final languageCode = prefs.getString('app_language') ?? 'en';
     _currentLocale = Locale(languageCode);
     notifyListeners();
   }
@@ -29,6 +29,6 @@ class LocaleProvider extends ChangeNotifier {
   }
 
   Future<void> resetToDefault() async {
-    await setLocale('ta');
+    await setLocale('en');
   }
 }

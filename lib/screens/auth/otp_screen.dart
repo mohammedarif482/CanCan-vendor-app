@@ -3,6 +3,7 @@ import 'package:pinput/pinput.dart';
 import '../../config/theme.dart';
 import '../../services/auth_service.dart';
 import '../../services/vendor_data_service.dart';
+import '../../services/push_notification_service.dart';
 import '../home/home_screen.dart';
 import 'profile_setup_screen.dart';
 
@@ -55,6 +56,8 @@ class _OTPScreenState extends State<OTPScreen> {
           // Initialize vendor data cache before navigating to home
           await VendorDataService.initialize(forceRefresh: true);
           print('✅ Vendor data cache initialized for returning user');
+
+          await PushNotificationService.initialize();
 
           if (!mounted) return;
 

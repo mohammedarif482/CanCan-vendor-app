@@ -16,11 +16,6 @@
     "deploy-prod": "npm run deploy-prod --prefix .."
   },
   "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
-    "@mui/icons-material": "^7.3.8",
-    "@mui/material": "^7.3.8",
-    "@mui/x-data-grid": "^8.27.1",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
     "@reduxjs/toolkit": "^2.11.2",
@@ -31,6 +26,7 @@
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "firebase-admin": "^13.0.2",
     "framer-motion": "^12.34.3",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.577.0",

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
 import '../../../models/order.dart';
 import '../../../services/order_service.dart';
+import '../../../services/order_lifecycle_api.dart';
+import '../../../utils/localization_extension.dart';
 
 /// Update Status Modal - Mark order as delivered/paid
 class UpdateStatusModal extends StatefulWidget {
@@ -20,9 +22,11 @@ class UpdateStatusModal extends StatefulWidget {
 
 class _UpdateStatusModalState extends State<UpdateStatusModal> {
   final _orderService = OrderService();
+  final _lifecycleApi = OrderLifecycleApi();
   bool _isDelivered = false;
   bool _isPaid = false;
   bool _isLoading = false;
+  bool _isActionLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -112,6 +116,38 @@ class _UpdateStatusModalState extends State<UpdateStatusModal> {
                   )
                 : const Text('Confirm'),
           ),
+          const SizedBox(height: 12),
+
+          // Postpone / Cancel — only relevant before delivery.
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _isActionLoading ? null : _postponeOrder,
+                  icon: const Icon(Icons.schedule, size: 18),
+                  label: Text(context.tr('postpone_order')),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.warningOrange,
+                    side: const BorderSide(color: AppTheme.warningOrange),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _isActionLoading ? null : _confirmCancelOrder,
+                  icon: const Icon(Icons.close, size: 18),
+                  label: Text(context.tr('cancel')),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.errorRed,
+                    side: const BorderSide(color: AppTheme.errorRed),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
 
           // Safe area padding for bottom
           SizedBox(height: MediaQuery.of(context).padding.bottom),
@@ -195,10 +231,32 @@ class _UpdateStatusModalState extends State<UpdateStatusModal> {
     setState(() => _isLoading = true);
 
     try {
+      // Payment is recorded through the backend (creates a real `payments`
+      // audit row) rather than writing orders.amount_paid directly — see
+      // OrderLifecycleApi.recordCashPayment. Delivered-marking has no
+      // financial side effects, so it stays a direct Supabase write.
+      if (_isPaid) {
+        final remaining = widget.order.totalAmount - widget.order.amountPaid;
+        if (remaining > 0.01) {
+          final paymentResult = await _lifecycleApi.recordCashPayment(widget.order.id, remaining);
+          if (paymentResult['success'] != true) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(paymentResult['message'] ?? 'Failed to record payment'),
+                  backgroundColor: AppTheme.errorRed,
+                ),
+              );
+              setState(() => _isLoading = false);
+            }
+            return;
+          }
+        }
+      }
+
       final result = await _orderService.updateOrderStatus(
         orderId: widget.order.id,
         isDelivered: _isDelivered,
-        isPaid: _isPaid,
       );
 
       if (!mounted) return;
@@ -242,6 +300,95 @@ class _UpdateStatusModalState extends State<UpdateStatusModal> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _postponeOrder() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.tr('postpone_order_title')),
+        content: Text(context.tr('postpone_order_confirm')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.tr('cancel'))),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: Text(context.tr('confirm'))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _isActionLoading = true);
+    final result = await _lifecycleApi.postponeOrder(widget.order.id);
+    if (!mounted) return;
+    setState(() => _isActionLoading = false);
+
+    if (result['success'] == true) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('order_postponed')), backgroundColor: AppTheme.successGreen),
+      );
+      widget.onUpdated();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? context.tr('failed_postpone_order')),
+          backgroundColor: AppTheme.errorRed,
+        ),
+      );
+    }
+  }
+
+  Future<void> _confirmCancelOrder() async {
+    final reasonController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.tr('cancel_order_title')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(context.tr('cancel_order_confirm')),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              decoration: InputDecoration(
+                hintText: context.tr('cancellation_reason_hint'),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.tr('cancel'))),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed),
+            child: Text(context.tr('confirm')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _isActionLoading = true);
+    final result = await _lifecycleApi.cancelOrder(widget.order.id, reason: reasonController.text.trim());
+    if (!mounted) return;
+    setState(() => _isActionLoading = false);
+
+    if (result['success'] == true) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('order_cancelled_success')), backgroundColor: AppTheme.successGreen),
+      );
+      widget.onUpdated();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? context.tr('failed_cancel_order')),
+          backgroundColor: AppTheme.errorRed,
+        ),
+      );
     }
   }
 }

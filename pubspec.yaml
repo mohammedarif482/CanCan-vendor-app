@@ -13,6 +13,14 @@ dependencies:
   # Supabase (Backend)
   supabase_flutter: ^2.5.0
 
+  # Push Notifications
+  firebase_core: ^3.8.0
+  firebase_messaging: ^15.1.5
+  flutter_local_notifications: ^18.0.1
+
+  # Backend API calls (postpone/cancel order)
+  http: ^1.2.0
+
   # Localization
   flutter_localizations:
     sdk: flutter

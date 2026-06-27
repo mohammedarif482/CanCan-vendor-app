@@ -4,9 +4,28 @@ import '../../services/vendor_data_service.dart';
 import '../../config/supabase_config.dart';
 import '../home/widgets/app_drawer.dart';
 
-/// Working Hours Screen - Set business hours
+class _DayHours {
+  bool isOpen;
+  TimeOfDay openTime;
+  TimeOfDay closeTime;
+
+  _DayHours({
+    this.isOpen = true,
+    this.openTime = const TimeOfDay(hour: 9, minute: 0),
+    this.closeTime = const TimeOfDay(hour: 18, minute: 0),
+  });
+}
+
+/// Working Hours Screen — per-day open/close times (a vendor open shorter
+/// hours on Sundays, say, isn't forced into one shared time for every day).
+///
+/// Pass [isOnboarding] + [onComplete] to use this as a step right after
+/// profile setup during signup, instead of only reachable later via Settings.
 class WorkingHoursScreen extends StatefulWidget {
-  const WorkingHoursScreen({super.key});
+  final bool isOnboarding;
+  final VoidCallback? onComplete;
+
+  const WorkingHoursScreen({super.key, this.isOnboarding = false, this.onComplete});
 
   @override
   State<WorkingHoursScreen> createState() => _WorkingHoursScreenState();
@@ -16,18 +35,22 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
 
-  final Map<String, bool> _workingDays = {
-    'Monday': true,
-    'Tuesday': true,
-    'Wednesday': true,
-    'Thursday': true,
-    'Friday': true,
-    'Saturday': true,
-    'Sunday': false,
+  static const List<String> _dayKeys = [
+    'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+  ];
+  static const Map<String, String> _dayLabels = {
+    'monday': 'Monday',
+    'tuesday': 'Tuesday',
+    'wednesday': 'Wednesday',
+    'thursday': 'Thursday',
+    'friday': 'Friday',
+    'saturday': 'Saturday',
+    'sunday': 'Sunday',
   };
 
-  TimeOfDay _openTime = const TimeOfDay(hour: 9, minute: 0);
-  TimeOfDay _closeTime = const TimeOfDay(hour: 18, minute: 0);
+  final Map<String, _DayHours> _days = {
+    for (final key in _dayKeys) key: _DayHours(isOpen: key != 'sunday'),
+  };
 
   @override
   void initState() {
@@ -35,75 +58,83 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
     _loadWorkingHours();
   }
 
+  TimeOfDay _parseTime(String value, TimeOfDay fallback) {
+    final parts = value.split(':');
+    if (parts.length < 2) return fallback;
+    return TimeOfDay(hour: int.tryParse(parts[0]) ?? fallback.hour, minute: int.tryParse(parts[1]) ?? fallback.minute);
+  }
+
   Future<void> _loadWorkingHours() async {
     setState(() => _isLoading = true);
     try {
-      // Use cached data - no API call if cache is valid
-      final data = await VendorDataService.getVendorProfile();
-      if (data != null) {
-        if (data['working_hours'] != null) {
-          final hours = data['working_hours'] as Map<String, dynamic>;
-          if (hours['open'] != null) {
-            final openParts = hours['open'].toString().split(':');
-            _openTime = TimeOfDay(
-              hour: int.parse(openParts[0]),
-              minute: int.parse(openParts[1]),
+      final data = widget.isOnboarding ? null : await VendorDataService.getVendorProfile();
+      final workingHours = data?['working_hours'] as Map<String, dynamic>?;
+
+      if (workingHours != null) {
+        // Per-day format: { "monday": { "is_open": true, "open": "09:00", "close": "18:00" }, ... }
+        // Falls back gracefully if an older single-shared-time row is read
+        // (legacy shape: { "open": "09:00", "close": "18:00" } + separate working_days list).
+        final looksPerDay = _dayKeys.any((d) => workingHours[d] is Map);
+        if (looksPerDay) {
+          for (final key in _dayKeys) {
+            final dayData = workingHours[key] as Map<String, dynamic>?;
+            if (dayData == null) continue;
+            final existing = _days[key]!;
+            _days[key] = _DayHours(
+              isOpen: dayData['is_open'] as bool? ?? existing.isOpen,
+              openTime: _parseTime(dayData['open']?.toString() ?? '', existing.openTime),
+              closeTime: _parseTime(dayData['close']?.toString() ?? '', existing.closeTime),
             );
           }
-          if (hours['close'] != null) {
-            final closeParts = hours['close'].toString().split(':');
-            _closeTime = TimeOfDay(
-              hour: int.parse(closeParts[0]),
-              minute: int.parse(closeParts[1]),
+        } else {
+          final sharedOpen = _parseTime(workingHours['open']?.toString() ?? '', const TimeOfDay(hour: 9, minute: 0));
+          final sharedClose = _parseTime(workingHours['close']?.toString() ?? '', const TimeOfDay(hour: 18, minute: 0));
+          final legacyDays = (data?['working_days'] as List?)?.map((d) => d.toString()).toSet() ?? {};
+          for (final key in _dayKeys) {
+            _days[key] = _DayHours(
+              isOpen: legacyDays.isEmpty ? _days[key]!.isOpen : legacyDays.contains(key),
+              openTime: sharedOpen,
+              closeTime: sharedClose,
             );
-          }
-        }
-        if (data['working_days'] != null) {
-          final days = List<String>.from(data['working_days'] as List);
-          for (var day in _workingDays.keys) {
-            _workingDays[day] = days.contains(day.toLowerCase());
           }
         }
       }
     } catch (e) {
       print('❌ Error loading working hours: $e');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _selectOpenTime() async {
-    final TimeOfDay? picked = await showTimePicker(
+  Future<void> _pickTime(String dayKey, bool isOpenTime) async {
+    final day = _days[dayKey]!;
+    final picked = await showTimePicker(
       context: context,
-      initialTime: _openTime,
+      initialTime: isOpenTime ? day.openTime : day.closeTime,
     );
-    if (picked != null) {
-      setState(() => _openTime = picked);
-    }
+    if (picked == null) return;
+    setState(() {
+      if (isOpenTime) {
+        day.openTime = picked;
+      } else {
+        day.closeTime = picked;
+      }
+    });
   }
 
-  Future<void> _selectCloseTime() async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: _closeTime,
-    );
-    if (picked != null) {
-      setState(() => _closeTime = picked);
-    }
-  }
+  String _fmt(TimeOfDay t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
-  Future<void> _saveWorkingHours() async {
+  Future<bool> _saveWorkingHours() async {
     setState(() => _isSaving = true);
 
     try {
-      final workingDays = _workingDays.entries
-          .where((e) => e.value)
-          .map((e) => e.key.toLowerCase())
-          .toList();
-
       final workingHours = {
-        'open': '${_openTime.hour.toString().padLeft(2, '0')}:${_openTime.minute.toString().padLeft(2, '0')}',
-        'close': '${_closeTime.hour.toString().padLeft(2, '0')}:${_closeTime.minute.toString().padLeft(2, '0')}',
+        for (final key in _dayKeys)
+          key: {
+            'is_open': _days[key]!.isOpen,
+            'open': _fmt(_days[key]!.openTime),
+            'close': _fmt(_days[key]!.closeTime),
+          },
       };
 
       final vendorId = SupabaseConfig.currentVendorId;
@@ -111,31 +142,18 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
         throw Exception('No vendor ID found');
       }
 
-      // Update working hours in Supabase
       await SupabaseConfig.client
           .from('vendors')
           .update({
             'working_hours': workingHours,
-            'working_days': workingDays,
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('id', vendorId);
 
-      // Clear cache to force refresh on next load
       await VendorDataService.clearCache();
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Working hours updated successfully!'),
-          backgroundColor: AppTheme.successGreen,
-        ),
-      );
-
-      // Reload data to reflect changes
-      await _loadWorkingHours();
+      return true;
     } catch (e) {
+      print('❌ Error saving working hours: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -144,15 +162,83 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
           ),
         );
       }
+      return false;
     } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _onSavePressed() async {
+    final success = await _saveWorkingHours();
+    if (!mounted || !success) return;
+
+    if (widget.isOnboarding) {
+      widget.onComplete?.call();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Working hours updated successfully!'),
+          backgroundColor: AppTheme.successGreen,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final body = _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.isOnboarding) ...[
+                  Text(
+                    'Set your working hours',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'You can change this anytime from Settings.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+                ..._dayKeys.map((key) => _buildDayRow(key)),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isSaving ? null : _onSavePressed,
+                    style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                    child: _isSaving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.white),
+                          )
+                        : Text(widget.isOnboarding ? 'Continue' : 'Save'),
+                  ),
+                ),
+                if (widget.isOnboarding) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: _isSaving ? null : widget.onComplete,
+                      child: const Text('Skip for now'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+
+    if (widget.isOnboarding) {
+      return Scaffold(body: SafeArea(child: body));
+    }
+
     return Scaffold(
       drawer: const AppDrawer(),
       appBar: AppBar(
@@ -161,110 +247,58 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.pop(context),
         ),
-        actions: [
-          if (!_isLoading)
-            TextButton(
-              onPressed: _isSaving ? null : _saveWorkingHours,
-              child: Text(
-                'Save',
-                style: TextStyle(
-                  color: _isSaving
-                      ? AppTheme.white.withValues(alpha: 0.5)
-                      : AppTheme.white,
-                  fontWeight: FontWeight.w600,
-                ),
+      ),
+      body: body,
+    );
+  }
+
+  Widget _buildDayRow(String dayKey) {
+    final day = _days[dayKey]!;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppTheme.mediumGray),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(_dayLabels[dayKey]!, style: const TextStyle(fontWeight: FontWeight.w600)),
+              Switch(
+                value: day.isOpen,
+                onChanged: (v) => setState(() => day.isOpen = v),
               ),
+            ],
+          ),
+          if (day.isOpen)
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _pickTime(dayKey, true),
+                    child: Text(day.openTime.format(context)),
+                  ),
+                ),
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('to')),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _pickTime(dayKey, false),
+                    child: Text(day.closeTime.format(context)),
+                  ),
+                ),
+              ],
+            )
+          else
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Text('Closed', style: TextStyle(color: AppTheme.textSecondary)),
             ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Business Hours
-                  Text(
-                    'Business Hours',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: InkWell(
-                          onTap: _selectOpenTime,
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: AppTheme.mediumGray),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Column(
-                              children: [
-                                const Text('Open Time'),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _openTime.format(context),
-                                  style: Theme.of(context).textTheme.titleLarge,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: InkWell(
-                          onTap: _selectCloseTime,
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: AppTheme.mediumGray),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Column(
-                              children: [
-                                const Text('Close Time'),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _closeTime.format(context),
-                                  style: Theme.of(context).textTheme.titleLarge,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Working Days
-                  Text(
-                    'Working Days',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 16),
-                  ..._workingDays.entries.map((entry) => Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: SwitchListTile(
-                          title: Text(entry.key),
-                          value: entry.value,
-                          onChanged: (value) {
-                            setState(() => _workingDays[entry.key] = value);
-                          },
-                        ),
-                      )),
-                ],
-              ),
-            ),
     );
   }
 }
-

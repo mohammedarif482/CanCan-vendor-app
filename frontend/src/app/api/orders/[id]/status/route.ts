@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin, unauthorized } from '@/lib/auth';
+import { TERMINAL_REVERSAL_STATUSES, reverseOrderFinancialsAndStock } from '@/lib/order-lifecycle';
 import {
     notifyDeliveryFailed,
     notifyOrderDelivered,
@@ -20,10 +21,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { data: existingOrder } = await supabaseAdmin
         .from('orders')
         .select(
-            'id, order_number, delivery_date, delivered_at, is_delivered, customer:customers(phone), vendor:vendors(name, business_name)',
+            'id, status, vendor_id, order_number, delivery_date, delivered_at, is_delivered, customer:customers(phone), vendor:vendors(name, business_name)',
         )
         .eq('id', id)
         .maybeSingle();
+
+    const previousStatus = (existingOrder as any)?.status as string | undefined;
+    const wasAlreadyTerminal = previousStatus ? TERMINAL_REVERSAL_STATUSES.has(previousStatus) : false;
 
     const markDelivered = status === 'delivered' || status === 'completed';
     const updatePayload: Record<string, unknown> = {
@@ -45,6 +49,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     if (error) {
         return Response.json({ error: error.message }, { status: 500 });
+    }
+
+    // Guard against double-reversal: only run reversal/stock-release the
+    // first time an order transitions INTO a terminal state. If it was
+    // already cancelled/failed before this call, a repeat PUT (double-click,
+    // client retry) must not debit the vendor or release stock a second time.
+    if (TERMINAL_REVERSAL_STATUSES.has(status) && !wasAlreadyTerminal) {
+        await reverseOrderFinancialsAndStock(id, (existingOrder as any)?.vendor_id || null);
     }
 
     const customerPhone = (existingOrder as any)?.customer?.phone as string | undefined;

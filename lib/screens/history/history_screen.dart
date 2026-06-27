@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../config/theme.dart';
+import '../../config/constants.dart';
 import '../../services/order_service.dart';
 import '../../models/order.dart';
 import '../home/widgets/app_drawer.dart';
@@ -15,22 +16,48 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   final _orderService = OrderService();
+  final _searchController = TextEditingController();
   bool _isLoading = true;
-  bool _showCompleted = true;
 
-  List<Order> _completedOrders = [];
-  List<Order> _cancelledOrders = [];
+  // Filters by payment status, not delivery status — cans/earnings totals
+  // moved to Analytics, and "Completed/Cancelled" tabs are replaced with
+  // "All/Unpaid/Paid" since that's what vendors actually need to track here.
+  String _paymentFilter = 'all'; // 'all', 'unpaid', 'paid'
+  List<Order> _deliveredOrders = [];
 
   DateTime _selectedDate = DateTime.now();
   DateTime? _startDate;
   DateTime? _endDate;
   String _dateFilterMode = 'today'; // 'today', 'specific', 'range'
 
-  // Summary data
-  int _totalCansDelivered = 0;
-  double _totalEarnings = 0.0;
-
   bool _isDeliveredStatus(String status) => status == 'completed' || status == 'delivered';
+
+  List<Order> get _filteredOrders {
+    var orders = _deliveredOrders;
+
+    if (_paymentFilter == 'paid') {
+      orders = orders.where((o) => o.paymentStatus == 'paid').toList();
+    } else if (_paymentFilter == 'unpaid') {
+      orders = orders.where((o) => o.paymentStatus != 'paid').toList();
+    }
+
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isNotEmpty) {
+      orders = orders.where((o) {
+        final customer = o.customer;
+        if (customer == null) return false;
+        return customer.name.toLowerCase().contains(query) || customer.phone.contains(query);
+      }).toList();
+    }
+
+    return orders;
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -42,8 +69,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     setState(() => _isLoading = true);
 
     try {
-      List<Order> completed = [];
-      List<Order> cancelled = [];
+      List<Order> delivered = [];
 
       if (_dateFilterMode == 'range' &&
           _startDate != null &&
@@ -52,46 +78,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
         DateTime current = _startDate!;
         while (current.isBefore(_endDate!) ||
             current.isAtSameMomentAs(_endDate!)) {
-          final dayCompleted = await _orderService.getOrdersByDate(
+          final dayDelivered = await _orderService.getOrdersByDate(
             date: current,
             status: 'delivered',
           );
-          final dayCancelled = await _orderService.getOrdersByDate(
-            date: current,
-            status: 'cancelled',
-          );
-          completed.addAll(dayCompleted);
-          cancelled.addAll(dayCancelled);
+          delivered.addAll(dayDelivered);
           current = current.add(const Duration(days: 1));
         }
       } else {
         // Load orders for specific date
-        final results = await Future.wait([
-          _orderService.getOrdersByDate(
-              date: _selectedDate, status: 'delivered'),
-          _orderService.getOrdersByDate(
-              date: _selectedDate, status: 'cancelled'),
-        ]);
-        completed = results[0];
-        cancelled = results[1];
-      }
-
-      // Calculate totals
-      int totalCans = 0;
-      double totalEarnings = 0.0;
-
-      for (final order in completed) {
-        totalEarnings += order.totalAmount;
-        for (final item in order.items) {
-          totalCans += item.quantity;
-        }
+        delivered = await _orderService.getOrdersByDate(
+            date: _selectedDate, status: 'delivered');
       }
 
       setState(() {
-        _completedOrders = completed;
-        _cancelledOrders = cancelled;
-        _totalCansDelivered = totalCans;
-        _totalEarnings = totalEarnings;
+        _deliveredOrders = delivered;
         _isLoading = false;
       });
     } catch (e) {
@@ -284,29 +285,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         const SizedBox(width: 48),
                       ],
                     ),
-                    const SizedBox(height: AppTheme.spacingXXL),
-                    // Summary Cards
-                    if (_dateFilterMode != 'range' ||
-                        (_startDate != null && _endDate != null))
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildSummaryCard(
-                              '$_totalCansDelivered',
-                              'Total Cans Delivered',
-                              Icons.water_drop_rounded,
-                            ),
-                          ),
-                          const SizedBox(width: AppTheme.spacingM),
-                          Expanded(
-                            child: _buildSummaryCard(
-                              'Rs. ${_totalEarnings.toStringAsFixed(0)}',
-                              'Total Earnings',
-                              Icons.payments_rounded,
-                            ),
-                          ),
-                        ],
-                      ),
                   ],
                 ),
               ),
@@ -332,15 +310,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             AppTheme.spacingM),
                         child: Column(
                           children: [
-                            // Tabs
-                            Row(
-                              children: [
-                                _buildTab(_completedOrders.length, 'Completed',
-                                    _showCompleted, true),
-                                const SizedBox(width: AppTheme.spacingL),
-                                _buildTab(_cancelledOrders.length, 'Cancelled',
-                                    !_showCompleted, false),
-                              ],
+                            // Payment status filter — carousel of All/Unpaid/Paid chips.
+                            _buildPaymentFilterCarousel(),
+                            const SizedBox(height: AppTheme.spacingM),
+                            // Search by customer name or phone number.
+                            TextField(
+                              controller: _searchController,
+                              onChanged: (_) => setState(() {}),
+                              decoration: InputDecoration(
+                                hintText: 'Search by name or mobile number',
+                                prefixIcon: const Icon(Icons.search, size: 20),
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
                             ),
                             const SizedBox(height: AppTheme.spacingM),
                             // Date Navigator and Filter
@@ -482,123 +465,86 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildSummaryCard(String value, String label, IconData icon) {
-    return Container(
-      padding: AppTheme.paddingM,
-      decoration: BoxDecoration(
-        color: AppTheme.white.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppTheme.white.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppTheme.white, size: 24),
-          const SizedBox(width: AppTheme.spacingM),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppTheme.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.white.withValues(alpha: 0.9),
-                        fontSize: 11,
-                      ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildPaymentFilterCarousel() {
+    final filters = [
+      ('all', 'All', _deliveredOrders.length, AppTheme.primaryBlue),
+      ('unpaid', 'Unpaid', _deliveredOrders.where((o) => o.paymentStatus != 'paid').length, AppTheme.errorRed),
+      ('paid', 'Paid', _deliveredOrders.where((o) => o.paymentStatus == 'paid').length, AppTheme.successGreen),
+    ];
 
-  Widget _buildTab(int count, String label, bool isActive, bool isCompleted) {
-    // Determine colors based on tab type
-    final activeColor = isCompleted ? AppTheme.successGreen : AppTheme.errorRed;
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: filters.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppTheme.spacingS),
+        itemBuilder: (context, index) {
+          final (value, label, count, color) = filters[index];
+          final isActive = _paymentFilter == value;
 
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _showCompleted = isCompleted),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isActive
-                ? activeColor.withValues(alpha: 0.1)
-                : activeColor.withValues(
-                    alpha: 0.15), // More visible when inactive
-            borderRadius: BorderRadius.circular(8),
-            border: isActive
-                ? Border.all(
-                    color: activeColor,
-                    width: 2,
-                  )
-                : null,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? activeColor
-                      : activeColor.withValues(
-                          alpha: 0.5), // More visible for inactive badge
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '$count',
-                  style: const TextStyle(
-                    color: AppTheme.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
+          return GestureDetector(
+            onTap: () => setState(() => _paymentFilter = value),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: isActive ? color.withValues(alpha: 0.1) : AppTheme.lightGray,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: isActive ? color : AppTheme.mediumGray, width: isActive ? 2 : 1),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: isActive ? color : AppTheme.textSecondary,
+                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: isActive ? color : AppTheme.mediumGray,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: const TextStyle(color: AppTheme.white, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  color:
-                      isActive ? AppTheme.textPrimary : AppTheme.textSecondary,
-                  fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                ),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
 
   Widget _buildOrdersList() {
-    final orders = _showCompleted ? _completedOrders : _cancelledOrders;
+    final orders = _filteredOrders;
 
     if (orders.isEmpty) {
+      final hasSearch = _searchController.text.trim().isNotEmpty;
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              _showCompleted
-                  ? Icons.check_circle_outline
-                  : Icons.cancel_outlined,
+              hasSearch ? Icons.search_off_rounded : Icons.inbox_outlined,
               size: 64,
               color: AppTheme.mediumGray,
             ),
             const SizedBox(height: AppTheme.spacingL),
             Text(
-              _showCompleted ? 'No completed orders' : 'No cancelled orders',
+              hasSearch
+                  ? 'No matching orders'
+                  : switch (_paymentFilter) {
+                      'paid' => 'No paid orders',
+                      'unpaid' => 'No unpaid orders',
+                      _ => 'No delivered orders',
+                    },
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: AppTheme.textSecondary,
                   ),
@@ -660,7 +606,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       size: 16, color: AppTheme.warningOrange),
                   const SizedBox(width: AppTheme.spacingXS),
                   Text(
-                    order.timeSlot,
+                    AppConstants.formatTimeSlot(order.timeSlot),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppTheme.warningOrange,
                           fontWeight: FontWeight.w600,

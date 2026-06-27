@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
-import '../../../services/auth_service.dart';
 import '../../../services/vendor_data_service.dart';
 import '../../../utils/localization_extension.dart';
-import '../../auth/login_screen.dart';
+import '../../../widgets/business_details_sheet.dart';
 import '../../qr_code/qr_code_screen.dart';
-import '../../catalog/product_catalog_screen.dart';
 import '../../settings/settings_screen.dart';
 import '../../vacation/vacation_mode_screen.dart';
+import '../../customers/customer_list_screen.dart';
 
 /// App Drawer - Side menu with profile and settings
 class AppDrawer extends StatefulWidget {
@@ -75,7 +74,7 @@ class _AppDrawerState extends State<AppDrawer> {
                       const CircularProgressIndicator(color: AppTheme.white)
                     else ...[
                       Text(
-                        _vendorData?['name'] ?? context.tr('vendor'),
+                        '${context.tr('hi_greeting')}, ${_vendorData?['name'] ?? context.tr('vendor')}',
                         style:
                             Theme.of(context).textTheme.headlineSmall?.copyWith(
                                   color: AppTheme.white,
@@ -143,19 +142,6 @@ class _AppDrawerState extends State<AppDrawer> {
                         },
                       ),
                       _buildMenuItem(
-                        icon: Icons.storefront_rounded,
-                        title: context.tr('product_catalog'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const ProductCatalogScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      _buildMenuItem(
                         icon: Icons.qr_code_2_rounded,
                         title: context.tr('my_qr_code'),
                         onTap: () {
@@ -164,6 +150,19 @@ class _AppDrawerState extends State<AppDrawer> {
                             context,
                             MaterialPageRoute(
                               builder: (context) => const QRCodeScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      _buildMenuItem(
+                        icon: Icons.people_alt_rounded,
+                        title: context.tr('customers_title'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const CustomerListScreen(),
                             ),
                           );
                         },
@@ -178,17 +177,6 @@ class _AppDrawerState extends State<AppDrawer> {
                             MaterialPageRoute(
                               builder: (context) => const VacationModeScreen(),
                             ),
-                          );
-                        },
-                      ),
-                      _buildMenuItem(
-                        icon: Icons.analytics_rounded,
-                        title: context.tr('analytics'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content: Text(context.tr('analytics_coming_soon'))),
                           );
                         },
                       ),
@@ -221,13 +209,6 @@ class _AppDrawerState extends State<AppDrawer> {
                           Navigator.pop(context);
                           _showAbout(context);
                         },
-                      ),
-                      const Divider(height: 32),
-                      _buildMenuItem(
-                        icon: Icons.logout_rounded,
-                        title: context.tr('logout'),
-                        color: AppTheme.errorRed,
-                        onTap: () => _handleLogout(context),
                       ),
                     ],
                   ),
@@ -277,233 +258,10 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   void _showBusinessDetails(BuildContext context) {
-    final nameController = TextEditingController(text: _vendorData?['name'] ?? '');
-    final businessNameController = TextEditingController(text: _vendorData?['business_name'] ?? '');
-    final addressController = TextEditingController(text: _vendorData?['address'] ?? '');
-    bool isEditing = false;
-    bool isSaving = false;
-
-    showModalBottomSheet(
+    showBusinessDetailsSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => Container(
-          padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: AppTheme.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      context.tr('business_details'),
-                      style: Theme.of(context).textTheme.titleLarge,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              if (!isEditing) ...[
-                _buildDetailItem(context.tr('vendor_name'), _vendorData?['name'] ?? context.tr('not_available')),
-                _buildDetailItem(
-                    context.tr('business_name'), _vendorData?['business_name'] ?? context.tr('not_available')),
-                _buildDetailItem(context.tr('phone_number'), _vendorData?['phone'] ?? context.tr('not_available')),
-                _buildDetailItem(context.tr('address'), _vendorData?['address'] ?? context.tr('not_available')),
-              ] else ...[
-                Text(
-                  context.tr('vendor_name'),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: nameController,
-                  decoration: InputDecoration(
-                    hintText: context.tr('enter_vendor_name'),
-                    border: const OutlineInputBorder(),
-                  ),
-                  textCapitalization: TextCapitalization.words,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  context.tr('business_name'),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: businessNameController,
-                  decoration: InputDecoration(
-                    hintText: context.tr('enter_business_name'),
-                    border: const OutlineInputBorder(),
-                  ),
-                  textCapitalization: TextCapitalization.words,
-                ),
-                const SizedBox(height: 16),
-                _buildDetailItem(context.tr('phone_number'), _vendorData?['phone'] ?? context.tr('not_available')),
-                const SizedBox(height: 16),
-                Text(
-                  context.tr('address'),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: addressController,
-                  decoration: InputDecoration(
-                    hintText: context.tr('enter_address'),
-                    border: const OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                  textCapitalization: TextCapitalization.words,
-                ),
-              ],
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: isSaving
-                          ? null
-                          : () {
-                              if (isEditing) {
-                                Navigator.pop(context);
-                              } else {
-                                Navigator.pop(context);
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.mediumGray,
-                        foregroundColor: AppTheme.white,
-                      ),
-                      child: Text(context.tr('close')),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: isSaving
-                          ? null
-                          : () async {
-                              if (!isEditing) {
-                                setState(() => isEditing = true);
-                              } else {
-                                // Save changes
-                                setState(() => isSaving = true);
-                                try {
-                                  final result = await VendorDataService.updateProfile(
-                                    name: nameController.text.trim(),
-                                    businessName: businessNameController.text.trim(),
-                                    address: addressController.text.trim(),
-                                  );
-
-                                  if (!context.mounted) return;
-
-                                  if (result['success']) {
-                                    await VendorDataService.clearCache();
-                                    await _loadVendorData();
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text(context.tr('business_details_updated')),
-                                          backgroundColor: AppTheme.successGreen,
-                                        ),
-                                      );
-                                      Navigator.pop(context);
-                                    }
-                                  } else {
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text(result['message'] ?? context.tr('failed_update_business_details')),
-                                          backgroundColor: AppTheme.errorRed,
-                                        ),
-                                      );
-                                    }
-                                    setState(() => isSaving = false);
-                                  }
-                                } catch (e) {
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(context.tr('something_went_wrong')),
-                                        backgroundColor: AppTheme.errorRed,
-                                      ),
-                                    );
-                                  }
-                                  setState(() => isSaving = false);
-                                }
-                              }
-                            },
-                      child: isSaving
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppTheme.white,
-                              ),
-                            )
-                          : Text(isEditing ? context.tr('save') : context.tr('edit')),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: MediaQuery.of(context).padding.bottom),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailItem(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppTheme.textSecondary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-        ],
-      ),
+      vendorData: _vendorData,
+      onUpdated: _loadVendorData,
     );
   }
 
@@ -576,34 +334,4 @@ class _AppDrawerState extends State<AppDrawer> {
     );
   }
 
-  void _handleLogout(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await AuthService().signOut();
-              if (context.mounted) {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  (route) => false,
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.errorRed,
-            ),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
-    );
-  }
 }

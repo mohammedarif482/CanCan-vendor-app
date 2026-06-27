@@ -40,6 +40,10 @@ android/key.properties
 *.jks
 *.keystore
 
+# Firebase config (per-environment, do not commit)
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+
 # ------------------------------
 # iOS / macOS
 # ------------------------------

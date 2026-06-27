@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
           sourceType: 'cash_collection',
           amount: vendorShareForThisCollection,
           status: 'posted',
-          notes: `Cash collected by CanCan and credited to vendor wallet`,
+          notes: `Cash collected by Can Can and credited to vendor wallet`,
         });
       }
     }

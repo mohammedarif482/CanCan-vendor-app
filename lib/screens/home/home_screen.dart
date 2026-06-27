@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../../config/theme.dart';
+import '../../config/constants.dart';
 import '../../services/order_service.dart';
 import '../../services/vendor_service.dart';
 import '../../models/order.dart';
@@ -83,9 +84,12 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
   final _vendorService = VendorService();
   bool _isLoading = true;
 
+  static const int _carouselDayCount = 7; // Today + Tomorrow + next 5 days
+  late final DateTime _today = DateTime.now();
+  late DateTime _selectedDate = DateTime(_today.year, _today.month, _today.day);
+
   List<Order> _pendingOrders = [];
   int _totalCans = 0;
-  double _totalEarnings = 0.0;
   bool _isVendorReady = true;
   String _vendorReadinessMessage = '';
 
@@ -95,13 +99,22 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
     _loadData();
   }
 
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  void _onDateSelected(DateTime date) {
+    if (_isSameDay(date, _selectedDate)) return;
+    setState(() => _selectedDate = date);
+    _loadData();
+  }
+
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
 
     try {
       final results = await Future.wait([
-        _orderService.getTodayOrders(status: 'pending'),
-        _orderService.getDailySummary(),
+        _orderService.getOrdersByDate(date: _selectedDate, status: 'pending'),
+        _orderService.getDailySummaryForDate(_selectedDate),
         _vendorService.getVendorReadinessStatus(),
       ]);
 
@@ -110,7 +123,6 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
         final summary = results[1] as Map<String, dynamic>;
         final readiness = results[2] as Map<String, dynamic>;
         _totalCans = summary['totalCans'] ?? 0;
-        _totalEarnings = summary['totalEarnings'] ?? 0.0;
         _isVendorReady = readiness['isReady'] ?? false;
         _vendorReadinessMessage = readiness['message'] ?? '';
         _isLoading = false;
@@ -125,9 +137,6 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final dateStr = DateFormat('EEEE, d MMM yyyy').format(now);
-
     return Container(
       decoration: const BoxDecoration(
         gradient: AppTheme.primaryGradient,
@@ -138,9 +147,9 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
             Padding(
               padding: AppTheme.paddingXXL,
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Container(
                         decoration: BoxDecoration(
@@ -154,55 +163,29 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
                           },
                         ),
                       ),
-                      Column(
-                        children: [
-                          Text(
-                            context.tr('todays_deliveries'),
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(
-                                  color: AppTheme.white.withValues(alpha: 0.9),
-                                ),
-                          ),
-                          const SizedBox(height: AppTheme.spacingXS),
-                          Text(
-                            dateStr,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  color: AppTheme.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                        ],
+                      const SizedBox(width: AppTheme.spacingM),
+                      Text(
+                        context.tr('deliveries_for'),
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: AppTheme.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                       ),
-                      const SizedBox(width: 48),
                     ],
                   ),
-                  const SizedBox(height: AppTheme.spacingXXL),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: _showDeliveryBreakdown,
-                          child: _buildSummaryCard(
-                            context,
-                            '$_totalCans',
-                            context.tr('to_be_delivered'),
-                          ),
-                        ),
+                  const SizedBox(height: AppTheme.spacingL),
+                  _buildDateCarousel(context),
+                  const SizedBox(height: AppTheme.spacingXL),
+                  GestureDetector(
+                    onTap: _showDeliveryBreakdown,
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: _buildSummaryCard(
+                        context,
+                        '$_totalCans',
+                        context.tr('to_be_delivered'),
                       ),
-                      const SizedBox(width: AppTheme.spacingL),
-                      Expanded(
-                        child: _buildSummaryCard(
-                          context,
-                          'Rs. ${_totalEarnings.toStringAsFixed(0)}',
-                          context.tr('earnings'),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),
@@ -308,9 +291,69 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
     );
   }
 
+  Widget _buildDateCarousel(BuildContext context) {
+    return SizedBox(
+      height: 72,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _carouselDayCount,
+        separatorBuilder: (_, __) => const SizedBox(width: AppTheme.spacingS),
+        itemBuilder: (context, index) {
+          final date = _today.add(Duration(days: index));
+          final isSelected = _isSameDay(date, _selectedDate);
+          final dayLabel = index == 0
+              ? context.tr('today_label')
+              : index == 1
+                  ? context.tr('tomorrow_label')
+                  : DateFormat('EEE').format(date);
+          final dateLabel = DateFormat('d MMM').format(date);
+
+          return GestureDetector(
+            onTap: () => _onDateSelected(date),
+            child: Container(
+              width: 84,
+              padding: const EdgeInsets.symmetric(vertical: AppTheme.spacingS),
+              decoration: BoxDecoration(
+                color: isSelected ? AppTheme.white : AppTheme.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppTheme.white.withValues(alpha: isSelected ? 1 : 0.3),
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    dayLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: isSelected ? AppTheme.primaryBlue : AppTheme.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dateLabel,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: isSelected
+                              ? AppTheme.textSecondary
+                              : AppTheme.white.withValues(alpha: 0.85),
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildSummaryCard(BuildContext context, String value, String label) {
     return Container(
       padding: AppTheme.paddingXL,
+      constraints: const BoxConstraints(minHeight: 96),
       decoration: BoxDecoration(
         color: AppTheme.white.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(16),
@@ -321,6 +364,7 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
             value,
@@ -332,6 +376,8 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
           const SizedBox(height: AppTheme.spacingXS),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppTheme.white.withValues(alpha: 0.9),
                 ),
@@ -368,7 +414,7 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
                   size: 16, color: AppTheme.warningOrange),
               const SizedBox(width: AppTheme.spacingXS),
               Text(
-                order.timeSlot,
+                AppConstants.formatTimeSlot(order.timeSlot),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppTheme.warningOrange,
                       fontWeight: FontWeight.w600,
@@ -472,7 +518,25 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(item.product?.name ?? context.tr('product')),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    item.product?.name ?? context.tr('product'),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: AppTheme.spacingXS),
+                                Text(
+                                  'Rs. ${item.unitPrice.toStringAsFixed(0)}',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: AppTheme.textSecondary,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
                           Text(
                             'x ${item.quantity}',
                             style: Theme.of(context).textTheme.titleMedium,
@@ -529,8 +593,12 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
 
   Future<void> _makePhoneCall(String phoneNumber) async {
     final uri = Uri(scheme: 'tel', path: phoneNumber);
+    // externalApplication forces the native Phone dialer. Without it, iOS
+    // can route tel: links through a universal-link handler that opens
+    // FaceTime instead of the Phone app for numbers it associates with
+    // an Apple ID/FaceTime-enabled contact.
     if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

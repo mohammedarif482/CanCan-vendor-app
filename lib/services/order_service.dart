@@ -180,8 +180,11 @@ class OrderService {
     }
   }
 
-  /// Get daily summary (total cans and earnings)
-  Future<Map<String, dynamic>> getDailySummary() async {
+  /// Get daily summary (total cans and earnings) for today.
+  Future<Map<String, dynamic>> getDailySummary() => getDailySummaryForDate(DateTime.now());
+
+  /// Get pending-order summary (total cans and earnings) for an arbitrary date.
+  Future<Map<String, dynamic>> getDailySummaryForDate(DateTime date) async {
     try {
       final vendorId = SupabaseConfig.currentVendorId;
       if (vendorId == null) {
@@ -189,11 +192,10 @@ class OrderService {
         return {'totalCans': 0, 'totalEarnings': 0.0};
       }
 
-      final today = DateTime.now();
       final dateStr =
-          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
-      // Get all pending orders for today
+      // Get all pending orders for this date
       final orders = await _supabase
           .from('orders')
           .select('''
@@ -219,7 +221,7 @@ class OrderService {
 
       return {'totalCans': totalCans, 'totalEarnings': totalEarnings};
     } catch (e) {
-      print('❌ Error fetching daily summary: $e');
+      print('❌ Error fetching daily summary for $date: $e');
       return {'totalCans': 0, 'totalEarnings': 0.0};
     }
   }
@@ -280,12 +282,16 @@ class OrderService {
     }
   }
 
-  /// Update order status
-  /// Note: For recording payments, use PaymentService.recordPayment() instead
+  /// Marks an order delivered (and deducts stock). Does NOT touch payment
+  /// fields — for recording a payment, use OrderLifecycleApi.recordCashPayment()
+  /// (vendor cash collection, creates a real `payments` audit row) or
+  /// PaymentService.recordPayment(). The `isPaid` parameter that used to
+  /// live here wrote orders.amount_paid/payment_status directly, bypassing
+  /// the payments table entirely and silently diverging from every other
+  /// payment-recording path in the app — removed for that reason.
   Future<Map<String, dynamic>> updateOrderStatus({
     required String orderId,
     required bool isDelivered,
-    required bool isPaid,
   }) async {
     try {
       final updates = <String, dynamic>{};
@@ -301,27 +307,6 @@ class OrderService {
         if (!stockResult['success']) {
           print('⚠️ Warning: ${stockResult['message']}');
         }
-      }
-
-      if (isPaid) {
-        // Get order total amount
-        final order = await _supabase
-            .from('orders')
-            .select('total_amount, payment_status')
-            .eq('id', orderId)
-            .single();
-
-        final totalAmount = (order['total_amount'] as num).toDouble();
-        // Set amount_paid to total_amount for full payment
-        updates['amount_paid'] = totalAmount;
-        updates['remaining_amount'] = 0;
-        updates['payment_status'] = 'paid';
-        final existingPaymentStatus = order['payment_status'] as String? ?? '';
-        if (existingPaymentStatus != 'paid') {
-          updates['payment_state'] = 'collected_cash_vendor';
-          updates['payment_method'] = 'cash';
-        }
-        updates['payment_marked_at'] = DateTime.now().toIso8601String();
       }
 
       if (updates.isNotEmpty) {

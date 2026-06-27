@@ -1,9 +1,15 @@
 import { NextRequest } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { isRateLimited } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
     try {
+        const ip = req.headers.get('x-forwarded-for') || 'unknown';
+        if (isRateLimited(`onboard:${ip}`, 20, 60 * 60 * 1000)) {
+            return Response.json({ error: 'Too many requests. Try again later.' }, { status: 429 });
+        }
+
         const body = await req.json();
         const {
             phone,
@@ -29,6 +35,10 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        if (isRateLimited(`onboard:phone:${phone}`, 5, 60 * 60 * 1000)) {
+            return Response.json({ error: 'Too many requests for this phone number. Try again later.' }, { status: 429 });
+        }
+
         // Validate vendor exists
         const { data: vendor, error: vendorError } = await supabaseAdmin
             .from('vendors')
@@ -40,11 +50,24 @@ export async function POST(req: NextRequest) {
             return Response.json({ error: 'Vendor not found' }, { status: 404 });
         }
 
-        // Upsert customer (insert if new, update if exists by phone)
-        const { data: customer, error: customerError } = await supabaseAdmin
+        // If this phone is already a known customer, do NOT let an
+        // unauthenticated onboarding POST silently overwrite their existing
+        // name/address (anyone who guesses/knows a phone number could
+        // otherwise corrupt a real customer's profile). Just link them to
+        // the new vendor and return their existing record untouched.
+        const { data: existingCustomer } = await supabaseAdmin
             .from('customers')
-            .upsert(
-                {
+            .select('*')
+            .eq('phone', phone)
+            .maybeSingle();
+
+        let customer = existingCustomer;
+        let customerError: { message: string } | null = null;
+
+        if (!existingCustomer) {
+            const inserted = await supabaseAdmin
+                .from('customers')
+                .insert({
                     phone,
                     name,
                     address,
@@ -59,13 +82,14 @@ export async function POST(req: NextRequest) {
                     pincode: pincode || null,
                     is_verified: true,
                     verification_status: 'verified',
-                },
-                { onConflict: 'phone' }
-            )
-            .select()
-            .single();
+                })
+                .select()
+                .single();
+            customer = inserted.data;
+            customerError = inserted.error;
+        }
 
-        if (customerError) {
+        if (customerError || !customer) {
             console.error('Customer upsert error:', customerError);
             return Response.json(
                 { error: 'Failed to save customer details' },

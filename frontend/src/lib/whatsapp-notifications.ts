@@ -24,3 +24,24 @@ export async function notifyDeliveryFailed(customerPhone: string, deliveryDate: 
     ],
   );
 }
+
+export async function notifyOrderPostponed(customerPhone: string, orderId: string, newDeliveryDate: string) {
+  await sendWhatsAppMessage(
+    customerPhone,
+    `📅 *Delivery Rescheduled*\n\nYour order *${orderId}* has been moved to *${newDeliveryDate}*.\n\nWe're sorry for the delay!`,
+  );
+}
+
+export async function notifyOrderCancelled(customerPhone: string, orderId: string, reason?: string | null) {
+  await sendWhatsAppMessage(
+    customerPhone,
+    `❌ *Order Cancelled*\n\nYour order *${orderId}* has been cancelled by the vendor.${reason ? `\n\nReason: ${reason}` : ''}\n\n_Send "Hi" to place a new order._`,
+  );
+}
+
+export async function notifyOrderCarriedForward(customerPhone: string, orderId: string, newDeliveryDate: string) {
+  await sendWhatsAppMessage(
+    customerPhone,
+    `📅 *Delivery Update*\n\nWe couldn't deliver your order *${orderId}* as scheduled. It's now rescheduled for *${newDeliveryDate}*.\n\nSorry for the inconvenience!`,
+  );
+}

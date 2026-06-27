@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'config/supabase_config.dart';
 import 'config/theme.dart';
 import 'config/app_localizations.dart';
 import 'services/vendor_data_service.dart';
+import 'services/push_notification_service.dart';
 import 'providers/locale_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
@@ -35,6 +37,16 @@ void main() async {
   // Initialize vendor data caching (loads vendor profile once)
   if (supabaseReady && SupabaseConfig.isAuthenticated) {
     await VendorDataService.initialize();
+  }
+
+  // Initialize push notifications (best-effort — must not block startup)
+  try {
+    await Firebase.initializeApp();
+    if (supabaseReady && SupabaseConfig.isAuthenticated) {
+      await PushNotificationService.initialize();
+    }
+  } catch (e) {
+    print('⚠️ Firebase/push init failed: $e');
   }
 
   runApp(CanCanApp(

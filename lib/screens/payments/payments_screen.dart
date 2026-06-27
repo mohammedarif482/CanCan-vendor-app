@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../config/theme.dart';
 import '../../services/order_service.dart';
-import '../../services/payment_service.dart';
+import '../../services/order_lifecycle_api.dart';
 import '../../services/settlement_service.dart';
 import '../../models/order.dart';
 import '../../utils/localization_extension.dart';
@@ -19,7 +19,7 @@ class PaymentsScreen extends StatefulWidget {
 
 class _PaymentsScreenState extends State<PaymentsScreen> {
   final _orderService = OrderService();
-  final _paymentService = PaymentService();
+  final _lifecycleApi = OrderLifecycleApi();
   final _settlementService = SettlementService();
   bool _isLoading = true;
 
@@ -91,11 +91,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       drawer: const AppDrawer(),
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF4CAF50), Color(0xFF45A049)],
-          ),
+          gradient: AppTheme.primaryGradient,
         ),
         child: SafeArea(
           child: Column(
@@ -258,7 +254,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                                   ),
                                   const SizedBox(height: AppTheme.spacingS),
                                   Text(
-                                    'Available from CanCan: Rs. ${_availableSettlementBalance.toStringAsFixed(0)}',
+                                    'Available from Can Can: Rs. ${_availableSettlementBalance.toStringAsFixed(0)}',
                                     style: Theme.of(context).textTheme.bodyMedium,
                                   ),
                                   Text(
@@ -518,17 +514,17 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                 return;
               }
 
-              // Use PaymentService to record the payment
-              final result = await _paymentService.recordPayment(
-                orderId: order.id,
-                amount: receivedAmount,
-                paymentMethod: 'cash',
-              );
+              // Records via backend so a real `payments` audit row is
+              // created (was previously written straight to orders columns,
+              // diverging from how the home screen's "Cash Paid" toggle and
+              // the admin dashboard record the exact same kind of payment).
+              final result = await _lifecycleApi.recordCashPayment(order.id, receivedAmount);
 
               if (!mounted) return;
 
-              if (result['success']) {
-                final remainingRaw = result['remaining_amount'] ?? result['remainingAmount'] ?? 0.0;
+              if (result['success'] == true) {
+                final orderData = result['data'] as Map<String, dynamic>?;
+                final remainingRaw = orderData?['remaining_amount'] ?? 0.0;
                 final remaining = (remainingRaw as num).toDouble();
                 
                 if (remaining <= 0) {

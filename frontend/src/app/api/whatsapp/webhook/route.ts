@@ -9,6 +9,7 @@ import {
 } from '@/lib/whatsapp';
 import { createProviderOrder } from '@/lib/payment-gateway';
 import { createPaymentIntentRecord } from '@/lib/finance-ledger';
+import { notifyVendorNewOrder } from '@/lib/push-notifications';
 
 const WHATSAPP_WEBHOOK_SECRET = process.env.WHATSAPP_WEBHOOK_SECRET;
 const META_APP_SECRET = process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET;
@@ -103,17 +104,12 @@ export async function POST(req: NextRequest) {
 async function processMessage(message: any, customerPhone: string) {
   if (!customerPhone) return;
 
-  // DEDUPLICATION
+  // DEDUPLICATION — rely on the DB unique constraint (idx_whatsapp_messages_dedup
+  // on message_id) as the source of truth, not a separate SELECT-then-INSERT,
+  // which is a TOCTOU race under Meta's near-simultaneous webhook retries.
   const messageId = message.id;
   if (messageId) {
-    const { data: existing } = await supabaseAdmin
-      .from('whatsapp_messages')
-      .select('id')
-      .eq('message_id', messageId)
-      .single();
-    if (existing) return;
-
-    await supabaseAdmin.from('whatsapp_messages').insert([{
+    const { error: insertError } = await supabaseAdmin.from('whatsapp_messages').insert([{
       message_id: messageId,
       customer_phone: customerPhone,
       message_type: message.type,
@@ -121,6 +117,13 @@ async function processMessage(message: any, customerPhone: string) {
       direction: 'inbound',
       status: 'received',
     }]);
+
+    if (insertError) {
+      // Unique violation (Postgres code 23505) means this message_id was
+      // already processed by another concurrent/retried delivery — stop here.
+      if ((insertError as any).code === '23505') return;
+      console.error('Failed to log inbound WhatsApp message:', insertError);
+    }
   }
 
   // RATE LIMIT
@@ -598,6 +601,13 @@ async function handleActiveSession(
     await sendWhatsAppMessage(phone, `Please type your address.`);
     return;
   }
+
+  // Unrecognized session state (e.g. stale state from a removed feature, or
+  // manual DB edit) — never silently drop the customer's message. Reset to
+  // a known-good state so the conversation can recover instead of stalling.
+  console.error('Unrecognized whatsapp_sessions.state — resetting session', { sessionId: session.id, state });
+  await supabaseAdmin.from('whatsapp_sessions').delete().eq('id', session.id);
+  await sendWhatsAppMessage(phone, `Sorry, something went wrong. Let's start over — type "hi" to begin.`);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1194,7 +1204,7 @@ async function insertOrderWithFallback(payload: Record<string, any>) {
     const { data, error } = await supabaseAdmin
       .from('orders')
       .insert(orderPayload)
-      .select('id, delivery_date, time_slot, total_amount')
+      .select('id, delivery_date, time_slot, total_amount, vendor_id, order_number, can_count')
       .single();
 
     if (!error) {
@@ -1293,7 +1303,7 @@ async function placeOrder(phone: string, customer: any, session: any) {
 
   const { data: existingOrder } = await supabaseAdmin
     .from('orders')
-    .select('id, delivery_date, time_slot, total_amount')
+    .select('id, delivery_date, time_slot, total_amount, vendor_id, order_number, can_count')
     .eq('idempotency_key', idempotencyKey)
     .maybeSingle();
 
@@ -1320,6 +1330,35 @@ async function placeOrder(phone: string, customer: any, session: any) {
         longitude: customer.longitude || null,
       });
       return;
+    }
+
+    if (financials.productId) {
+      const { data: stockReserved, error: stockError } = await supabaseAdmin.rpc('reserve_can_stock', {
+        p_vendor_id: financials.vendorId,
+        p_product_id: financials.productId,
+        p_quantity: canCount,
+      });
+
+      if (stockError) {
+        // RPC missing (migration not applied yet) must not silently allow unlimited overselling,
+        // but also must not break orders for vendors who haven't run the migration —
+        // log loudly and proceed only if the function genuinely doesn't exist.
+        const message = String(stockError.message || '');
+        if (!message.includes('function reserve_can_stock') && !message.includes('does not exist')) {
+          console.error('Stock reservation check failed:', stockError);
+          await supabaseAdmin.from('whatsapp_sessions').update({ state: 'awaiting_confirmation' }).eq('id', session.id);
+          await sendWhatsAppMessage(phone, `Sorry, something went wrong placing your order. Please try again.`);
+          return;
+        }
+        console.warn('reserve_can_stock RPC not found — apply supabase/migrations/20260628_add_whatsapp_stock_reservation.sql. Skipping stock check for this order.');
+      } else if (stockReserved === false) {
+        await supabaseAdmin.from('whatsapp_sessions').delete().eq('id', session.id);
+        await sendWhatsAppMessage(
+          phone,
+          `Sorry, this vendor is out of stock for the selected product right now. Please try again later or choose a different quantity.`,
+        );
+        return;
+      }
     }
 
     const orderPayload = {
@@ -1414,6 +1453,10 @@ async function placeOrder(phone: string, customer: any, session: any) {
   // Clean up session only after successful order creation.
   await supabaseAdmin.from('whatsapp_sessions').delete().eq('id', session.id);
 
+  if (order.vendor_id) {
+    notifyVendorNewOrder(order.vendor_id, order.order_number || order.id, Number(order.can_count || session.can_count || 1));
+  }
+
   const slotLabels: Record<string, string> = {
     morning: 'Morning (8am–12pm)',
     noon: 'Noon (12pm–3pm)',
@@ -1435,6 +1478,8 @@ async function placeOrder(phone: string, customer: any, session: any) {
         provider,
         amountInPaise: Math.round(orderAmount * 100),
         receipt,
+        customerId: customer.id,
+        customerPhone: phone.replace(/\D/g, '').slice(-10),
         notes: {
           order_id: order.id,
           source: 'whatsapp',
@@ -1459,7 +1504,7 @@ async function placeOrder(phone: string, customer: any, session: any) {
       if (checkoutUrl) {
         await sendWhatsAppMessage(
           phone,
-          `💳 You can pay online now: ${checkoutUrl}\n\nYou may also pay cash to CanCan at delivery.`,
+          `💳 You can pay online now: ${checkoutUrl}\n\nYou may also pay cash to Can Can at delivery.`,
         );
       }
     }
@@ -1719,16 +1764,31 @@ export async function notifyDeliveryFailed(customerPhone: string, deliveryDate: 
 // ─────────────────────────────────────────────────────────────
 
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
-  // Replace with your preferred geocoding service.
-  // Example using Google Maps Geocoding API:
-  //
-  // const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-  // const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
-  // const res = await fetch(url);
-  // const data = await res.json();
-  // return data.results?.[0]?.formatted_address || `${lat}, ${lng}`;
+  const apiKey = process.env.GOOGLE_MAPS_GEOCODING_API_KEY;
+  const fallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 
-  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`; // ← replace with real geocoding
+  if (!apiKey) {
+    console.warn('[reverseGeocode] GOOGLE_MAPS_GEOCODING_API_KEY not set — falling back to raw coordinates');
+    return fallback;
+  }
+
+  try {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.error('[reverseGeocode] Google Geocoding API HTTP error', res.status);
+      return fallback;
+    }
+    const data = await res.json();
+    if (data.status !== 'OK') {
+      console.error('[reverseGeocode] Google Geocoding API status', data.status, data.error_message);
+      return fallback;
+    }
+    return data.results?.[0]?.formatted_address || fallback;
+  } catch (e) {
+    console.error('[reverseGeocode] request failed', e);
+    return fallback;
+  }
 }
 
 async function getCustomerVendor(customerId: string) {
